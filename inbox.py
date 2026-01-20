@@ -37,19 +37,10 @@ def normalize_text(text: str) -> str:
     if not text:
         return ""
 
-    # Decode HTML entities (&nbsp;, &zwnj;, &amp; ...)
     text = html.unescape(text)
-
-    # Remove invisible / junk unicode characters
     text = JUNK_CHARS_REGEX.sub(" ", text)
-
-    # Normalize line breaks
     text = re.sub(r"\r\n", "\n", text)
-
-    # Remove excessive blank lines
     text = re.sub(r"\n{2,}", "\n", text)
-
-    # Collapse spaces & tabs
     text = re.sub(r"[ \t]+", " ", text)
 
     cleaned_lines = []
@@ -95,41 +86,35 @@ def extract_plain_text(payload):
 
 
 def extract_visible_html_text(payload):
-    html = ""
+    html_content = ""
 
     def walk(part):
-        nonlocal html
+        nonlocal html_content
         if part.get("mimeType") == "text/html":
             data = part.get("body", {}).get("data")
             if data:
-                html += decode_base64(data)
+                html_content += decode_base64(data)
 
         for sub in part.get("parts", []):
             walk(sub)
 
     walk(payload)
 
-    if not html:
+    if not html_content:
         return "", ""
 
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html_content, "html.parser")
     visible_text = soup.get_text(separator="\n", strip=True)
 
-    return html, visible_text
+    return html_content, visible_text
 
 
-def extract_image_urls_and_alt(html):
-    if not html:
-        return [], []
+def extract_image_urls(html_content):
+    if not html_content:
+        return []
 
-    soup = BeautifulSoup(html, "html.parser")
-    urls, alts = [], []
-
-    for img in soup.find_all("img"):
-        urls.append(img.get("src") or "")
-        alts.append(img.get("alt") or "")
-
-    return urls, alts
+    soup = BeautifulSoup(html_content, "html.parser")
+    return [img.get("src") for img in soup.find_all("img") if img.get("src")]
 
 
 def ocr_image_from_url(url):
@@ -141,9 +126,14 @@ def ocr_image_from_url(url):
     except Exception:
         return ""
 
+def looks_like_html(text: str) -> bool:
+    if not text:
+        return False
+    return bool(re.search(r"<(html|body|div|table|style|head|meta)[\s>]", text, re.I))
+
 
 # =========================================================
-# CORE FUNCTION — FINAL OUTPUT (STRING ONLY)
+# CORE FUNCTION — FINAL OUTPUT
 # =========================================================
 
 def get_clean_email_text(message_id: str) -> str:
@@ -164,24 +154,39 @@ def get_clean_email_text(message_id: str) -> str:
 
     # -------- BODY TEXT --------
     plain_text = extract_plain_text(payload)
-    html, visible_text = extract_visible_html_text(payload)
+    html_content, visible_text = extract_visible_html_text(payload)
 
-    body_text = normalize_text(
-        "\n".join(t for t in [plain_text, visible_text] if t)
-    )
+    parts = []
 
-    # -------- OCR TEXT --------
-    image_urls, alt_texts = extract_image_urls_and_alt(html)
-    ocr_blocks = []
+    if plain_text and not looks_like_html(plain_text):
+        parts.append(plain_text)
 
-    for url, alt in zip(image_urls, alt_texts):
-        ocr_text = ocr_image_from_url(url) if url else ""
-        if ocr_text.strip():
-            ocr_blocks.append(
-                f"[Image OCR Text]\n{ocr_text}\n[Image URL: {url}]"
-            )
+    if visible_text:
+        parts.append(visible_text)
+
+    body_text = normalize_text("\n".join(parts))
+
+
+    # -------- OCR TEXT (COMBINED ONCE) --------
+    image_urls = extract_image_urls(html_content)
+    ocr_texts = []
+
+    for url in image_urls:
+        text = ocr_image_from_url(url)
+        if text:
+            ocr_texts.append(text)
+
+    ocr_texts = list(dict.fromkeys(ocr_texts))  # dedupe
+    combined_ocr_text = "\n".join(ocr_texts).strip()
 
     # -------- FINAL TEXT --------
+    final_parts = []
+
+    if combined_ocr_text:
+        final_parts.append(
+            "--- IMAGE OCR TEXT ---\n\n" + combined_ocr_text
+        )
+
     header_block = "\n".join(
         line for line in [
             f"From: {sender}" if sender else "",
@@ -190,15 +195,12 @@ def get_clean_email_text(message_id: str) -> str:
         ] if line
     )
 
-    final_text = (
-        header_block
-        + "\n\n--- EMAIL BODY ---\n\n"
-        + body_text
-    )
+    if header_block:
+        final_parts.append(header_block)
 
-    if ocr_blocks:
-        final_text += "\n\n--- IMAGE OCR TEXT ---\n\n" + "\n\n".join(ocr_blocks)
+    if body_text:
+        final_parts.append("--- EMAIL BODY ---\n\n" + body_text)
 
-    return final_text.strip()
+    return "\n\n".join(final_parts).strip()
 
 
