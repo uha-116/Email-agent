@@ -1,6 +1,7 @@
 import os
 from google import genai
 
+
 # Configure client using GOOGLE_API_KEY
 client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 MODEL_NAME = "models/gemini-flash-latest"
@@ -17,6 +18,4 @@ def call_gemini(prompt: str) -> str:
 
 
 
-#Testing only
-if __name__ == "__main__":
-    print(call_gemini("Hi Im uharika"))
+
