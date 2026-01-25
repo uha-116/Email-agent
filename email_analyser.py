@@ -46,106 +46,117 @@ def analyze_email(clean_email_text: str) -> dict:
  
 
 text = """ 
---- IMAGE OCR TEXT ---
+Hexa
+Vv
 
-Linked
-VNRVJIET
-Download on the
-App Store
-GET ITON
-> Google Play
-Bhieeelin
+VENURA
 
-From: LinkedIn Job Alerts <jobalerts-noreply@linkedin.com>
-Subject: “software engineer”: Meta - Software Engineer, Audio and more
-Date: Tue, 20 Jan 2026 03:42:27 +0000 (UTC)
+From: Jia from Unstop <noreply@dare2compete.news>
+Subject: Volopay is hiring for the role of Backend Developer Internship!
+Date: Sun, 25 Jan 2026 05:42:22 +0000
 
 --- EMAIL BODY ---
 
-Your job alert for software engineer in Hyderabad
-New jobs match your preferences.
-Software Engineer, Audio
-Meta
-Hyderabad
-This company is actively hiring
-View job: https://www.linkedin.com/comm/jobs/view/4308315201/?trackingId=UsFFnzNB4LDOO6wdHcEUPw%3D%3D&refId=yClyZxT3%2B7R7yAXVKaP%2FEA%3D%3D&lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&trk=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338&trkEmail=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338-null-kog19o~mkm1sv8b~xy-null-null&eid=kog19o-mkm1sv8b-xy&otpToken=MTMwNzFiZTAxMTI2Y2JjMGIwMmEwZmViNDExOGVmYmM4N2NlZDU0NTlmYTg4NjZmN2JjZjA4NmE0ODUyNTlmMGZmZGNkN2U5NDlmNWVlZjI2ZTgwY2RjYWQ3YTNjMWExZTA4MGQxNWM3YjdmYjczMDg5NDE1YmY0LDEsMQ%3D%3D
----------------------------------------------------------
-Software Development Engineer, India Operations
-Amazon
-Hyderabad
-7 connections
-View job: https://www.linkedin.com/comm/jobs/view/4364260762/?trackingId=dfzT3afOcfvwVCR9miAElQ%3D%3D&refId=yClyZxT3%2B7R7yAXVKaP%2FEA%3D%3D&lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&trk=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338&trkEmail=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338-null-kog19o~mkm1sv8b~xy-null-null&eid=kog19o-mkm1sv8b-xy&otpToken=MTMwNzFiZTAxMTI2Y2JjMGIwMmEwZmViNDExOGVmYmM4N2NlZDU0NTlmYTg4NjZmN2JjZjA4NmE0ODUyNTlmMGZmZGNkN2U5NDlmNWVlZjI2ZTgwY2RjYWQ3YTNjMWExZTA4MGQxNWM3YjdmYjczMDg5NDE1YmY0LDEsMQ%3D%3D
----------------------------------------------------------
-Software Development Engineer, Delivery Experience
-Amazon
-Hyderabad
-This company is actively hiring
-View job: https://www.linkedin.com/comm/jobs/view/4364380523/?trackingId=o5G4Sy%2BKis0H%2Fca1NRw1yw%3D%3D&refId=yClyZxT3%2B7R7yAXVKaP%2FEA%3D%3D&lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&trk=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338&trkEmail=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338-null-kog19o~mkm1sv8b~xy-null-null&eid=kog19o-mkm1sv8b-xy&otpToken=MTMwNzFiZTAxMTI2Y2JjMGIwMmEwZmViNDExOGVmYmM4N2NlZDU0NTlmYTg4NjZmN2JjZjA4NmE0ODUyNTlmMGZmZGNkN2U5NDlmNWVlZjI2ZTgwY2RjYWQ3YTNjMWExZTA4MGQxNWM3YjdmYjczMDg5NDE1YmY0LDEsMQ%3D%3D
----------------------------------------------------------
-Custom Software Engineer
-Accenture services Pvt Ltd
-Hyderabad
-1 school alum
-View job: https://www.linkedin.com/comm/jobs/view/4360451790/?trackingId=l%2BC6H6aLBa0Du3VS0pWUQg%3D%3D&refId=yClyZxT3%2B7R7yAXVKaP%2FEA%3D%3D&lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&trk=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338&trkEmail=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338-null-kog19o~mkm1sv8b~xy-null-null&eid=kog19o-mkm1sv8b-xy&otpToken=MTMwNzFiZTAxMTI2Y2JjMGIwMmEwZmViNDExOGVmYmM4N2NlZDU0NTlmYTg4NjZmN2JjZjA4NmE0ODUyNTlmMGZmZGNkN2U5NDlmNWVlZjI2ZTgwY2RjYWQ3YTNjMWExZTA4MGQxNWM3YjdmYjczMDg5NDE1YmY0LDEsMQ%3D%3D
----------------------------------------------------------
-Software Engineer, Staff A
-Blackbaud India
-Hyderabad
-View job: https://www.linkedin.com/comm/jobs/view/4273843892/?trackingId=3quEB7jsinxH1trCZTvYQA%3D%3D&refId=yClyZxT3%2B7R7yAXVKaP%2FEA%3D%3D&lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&trk=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338&trkEmail=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338-null-kog19o~mkm1sv8b~xy-null-null&eid=kog19o-mkm1sv8b-xy&otpToken=MTMwNzFiZTAxMTI2Y2JjMGIwMmEwZmViNDExOGVmYmM4N2NlZDU0NTlmYTg4NjZmN2JjZjA4NmE0ODUyNTlmMGZmZGNkN2U5NDlmNWVlZjI2ZTgwY2RjYWQ3YTNjMWExZTA4MGQxNWM3YjdmYjczMDg5NDE1YmY0LDEsMQ%3D%3D
----------------------------------------------------------
-Software Developer 4
-Oracle
-Hyderabad
-10 connections
-View job: https://www.linkedin.com/comm/jobs/view/4340802919/?trackingId=OGansrKobhShP9fFnoYv5Q%3D%3D&refId=yClyZxT3%2B7R7yAXVKaP%2FEA%3D%3D&lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&trk=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338&trkEmail=eml-email_job_alert_digest_01-primary_job_list-0-jobcard_body_text_1739692338-null-kog19o~mkm1sv8b~xy-null-null&eid=kog19o-mkm1sv8b-xy&otpToken=MTMwNzFiZTAxMTI2Y2JjMGIwMmEwZmViNDExOGVmYmM4N2NlZDU0NTlmYTg4NjZmN2JjZjA4NmE0ODUyNTlmMGZmZGNkN2U5NDlmNWVlZjI2ZTgwY2RjYWQ3YTNjMWExZTA4MGQxNWM3YjdmYjczMDg5NDE1YmY0LDEsMQ%3D%3D
----------------------------------------------------------
-See all jobs on LinkedIn: https://www.linkedin.com/comm/jobs/search?keywords=software+engineer&distance=25&geoId=105556991&f_TPR=a1768738313-&sortBy=R&origin=JOB_ALERT_EMAIL&originToLandingJobPostings=4308315201,4364260762,4364380523,4360451790,4273843892,4340802919&lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&trk=eml-email_job_alert_digest_01-primary_job_list-0-see_all_jobs_text_1739692338&trkEmail=eml-email_job_alert_digest_01-primary_job_list-0-see_all_jobs_text_1739692338-null-kog19o~mkm1sv8b~xy-null-null&eid=kog19o-mkm1sv8b-xy&otpToken=MTMwNzFiZTAxMTI2Y2JjMGIwMmEwZmViNDExOGVmYmM4N2NlZDU0NTlmYTg4NjZmN2JjZjA4NmE0ODUyNTlmMGZmZGNkN2U5NDlmNWVlZjI2ZTgwY2RjYWQ3YTNjMWExZTA4MGQxNWM3YjdmYjczMDg5NDE1YmY0LDEsMQ%3D%3D
-Job search smarter with Premium
-https://www.linkedin.com/comm/premium/products/?upsellOrderOrigin=email_job_alert_digest_taj_upsell&utype=job&lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&trk=eml-email_job_alert_digest_01-job~alert-0-premium~upsell~text&trkEmail=eml-email_job_alert_digest_01-job~alert-0-premium~upsell~text-null-kog19o~mkm1sv8b~xy-null-null&eid=kog19o-mkm1sv8b-xy&otpToken=MTMwNzFiZTAxMTI2Y2JjMGIwMmEwZmViNDExOGVmYmM4N2NlZDU0NTlmYTg4NjZmN2JjZjA4NmE0ODUyNTlmMGZmZGNkN2U5NDlmNWVlZjI2ZTgwY2RjYWQ3YTNjMWExZTA4MGQxNWM3YjdmYjczMDg5NDE1YmY0LDEsMQ%3D%3D
-----------------------------------------
-This email was intended for Uharika Burjukindi (Final Year B.Tech Student at VNRVJIET | PwC Launchpad 2026)
-Learn why we included this: https://www.linkedin.com/help/linkedin/answer/4788?lang=en&lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&trk=eml-email_job_alert_digest_01-SecurityHelp-0-textfooterglimmer&trkEmail=eml-email_job_alert_digest_01-SecurityHelp-0-textfooterglimmer-null-kog19o~mkm1sv8b~xy-null-null&eid=kog19o-mkm1sv8b-xy&otpToken=MTMwNzFiZTAxMTI2Y2JjMGIwMmEwZmViNDExOGVmYmM4N2NlZDU0NTlmYTg4NjZmN2JjZjA4NmE0ODUyNTlmMGZmZGNkN2U5NDlmNWVlZjI2ZTgwY2RjYWQ3YTNjMWExZTA4MGQxNWM3YjdmYjczMDg5NDE1YmY0LDEsMQ%3D%3D
-You are receiving Job Alert emails.
-Manage your job alerts: https://www.linkedin.com/comm/jobs/alerts?lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&trk=eml-email_job_alert_digest_01-footer-0-manage_alerts_button_text&trkEmail=eml-email_job_alert_digest_01-footer-0-manage_alerts_button_text-null-kog19o~mkm1sv8b~xy-null-null&eid=kog19o-mkm1sv8b-xy&otpToken=MTMwNzFiZTAxMTI2Y2JjMGIwMmEwZmViNDExOGVmYmM4N2NlZDU0NTlmYTg4NjZmN2JjZjA4NmE0ODUyNTlmMGZmZGNkN2U5NDlmNWVlZjI2ZTgwY2RjYWQ3YTNjMWExZTA4MGQxNWM3YjdmYjczMDg5NDE1YmY0LDEsMQ%3D%3D
-Unsubscribe: https://www.linkedin.com/job-alert-email-unsubscribe?savedSearchId=1739692338&lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&ek=email_job_alert_digest_01&e=kog19o-mkm1sv8b-xy&eid=kog19o-mkm1sv8b-xy&m=unsubscribe&ts=footerGlimmer&li=0&t=plh · Help: https://www.linkedin.com/help/linkedin/answer/67?lang=en&lipi=urn%3Ali%3Apage%3Aemail_email_job_alert_digest_01%3ByJ3wxikBTviPWrXuX7CkEQ%3D%3D&midToken=AQG1la21CSCOig&midSig=0VsgAWOXF-Ss41&trk=eml-email_job_alert_digest_01-help-0-textfooterglimmer&trkEmail=eml-email_job_alert_digest_01-help-0-textfooterglimmer-null-kog19o~mkm1sv8b~xy-null-null&eid=kog19o-mkm1sv8b-xy&otpToken=MTMwNzFiZTAxMTI2Y2JjMGIwMmEwZmViNDExOGVmYmM4N2NlZDU0NTlmYTg4NjZmN2JjZjA4NmE0ODUyNTlmMGZmZGNkN2U5NDlmNWVlZjI2ZTgwY2RjYWQ3YTNjMWExZTA4MGQxNWM3YjdmYjczMDg5NDE1YmY0LDEsMQ%3D%3D
-© 2026 LinkedIn Corporation, 1zwnj000 West Maude Avenue, Sunnyvale, CA 94085.
-LinkedIn and the LinkedIn logo are registered trademarks of LinkedIn.
-Meta Software Engineer, Audio: As an Audio Embedded Engineer at Meta, you’ll…
-Your job alert for
-software engineer
-New jobs in Hyderabad match your preferences.
-Software Engineer, Audio
-Meta · Hyderabad
-Actively recruiting
-Software Development Engineer, India Operations
-Amazon · Hyderabad
-7 connections
-Software Development Engineer, Delivery Experience
-Amazon · Hyderabad
-Actively recruiting
-Custom Software Engineer
-Accenture services Pvt Ltd · Hyderabad (On-site)
-1 school alum
-Software Engineer, Staff A
-Blackbaud India · Hyderabad
-Software Developer 4
-Oracle · Hyderabad (On-site)
-10 connections
-See all jobs
-Job search smarter with Premium
-Try Premium for ₹0
-Get the new LinkedIn desktop app
-Also available on mobile
-This email was intended for Uharika Burjukindi (Final Year B.Tech Student at VNRVJIET | PwC Launchpad 2026)
-Learn why we included this.
-You are receiving Job Alert emails.
-Manage job alerts
-·
+unstop
+Tap to apply!
+Jobs & Internships
+Hi Burjukindi, here are some top opportunities curated just for you!
+Software Development Internship
+stratzi.ai
+Stipend:
+INR 35,000
+Location:
+Pune
+Data Analytics Internship
+Hexa Solution
+Stipend:
+INR 27,000
+Location:
+Work From Home
+Back End Developer Internship
+BotGauge
+Stipend:
+INR 20,000
+Location:
+Work From Home
+Campus Ambassador Carnival
+Unstop
+UI/UX Designer Internship
+7s IQ Pvt. Ltd.
+Stipend:
+INR 10,000
+Location:
+Work From Home
+Data Analyst Internship
+Vaidsys Technologies
+Stipend:
+INR 15,000
+Location:
+Work From Home
+Cloud Engineer Internship
+Alactic Inc.
+Stipend:
+INR 7,000
+Location:
+South West Delhi
+Training Videos and Manuals Creator Internship
+Nasher Miles Pvt.Ltd
+Stipend:
+INR 5,000
+Location:
+Mumbai
+Testing Engineer and QA Paid Internship
+Vishvena Techno Solutions Pvt. Ltd.
+Stipend:
+INR 5,000
+Location:
+Work From Home
+MERN Stack Internship
+BPH Technologies LLP
+Location:
+Work From Home
+UI/UX Designer Internship
+HxP Technologies
+Location:
+Work From Home
+Artificial Intelligence & Machine Learning Internship
+Venura EdTech
+Location:
+Work From Home
+Web Development Internship
+Confluent Solutions
+Location:
+Work From Home
+Java Internship
+App Genesis Soft Solutions Private Limited
+Location:
+Work From Home
+Market Intelligence Internship (Cloud, AI Infrastructure)
+Atomity
+Location:
+Work From Home
+Backend Developer Internship
+Volopay
+Location:
+Bengaluru
+Explore more opportunities
+Free ATS resumes & competition decks from mentors at
+Google, Meesho, Amazon, Accenture
+& more:
+Grab now!
+Competition
+Hiring Challenges
+Quizzes
+Hackathons
+Internships
+Jobs
+Get noticed by 30,000+ employers on Unstop
+Complete your profile
+© 2026
+Unstop
+. All rights reserved.
 Unsubscribe
-·
-Help
-© 2026 LinkedIn Corporation, 1 000 West Maude Avenue, Sunnyvale, CA 94085.
-LinkedIn and the LinkedIn logo are registered trademarks of LinkedIn.
+Unsubscribe Here
 """
 
 store=analyze_email(text)
