@@ -4,6 +4,7 @@ import requests
 import pytesseract
 import html
 import numpy as np
+import email.utils
 
 from bs4 import BeautifulSoup
 from PIL import Image
