@@ -136,7 +136,7 @@ def looks_like_html(text: str) -> bool:
 # CORE FUNCTION — FINAL OUTPUT
 # =========================================================
 
-def get_clean_email_text(message_id: str) -> str:
+def get_clean_email_text(message_id: str) -> dict:
     service = get_gmail_service()
 
     msg = service.users().messages().get(
@@ -148,9 +148,15 @@ def get_clean_email_text(message_id: str) -> str:
     payload = msg.get("payload", {})
     headers = payload.get("headers", [])
 
-    sender = get_header(headers, "From")
     subject = get_header(headers, "Subject")
-    date = get_header(headers, "Date")
+    date_str = get_header(headers, "Date")
+
+    # -------- RECEIVED DATE --------
+    received_at = None
+    if date_str:
+        received_at = datetime.fromtimestamp(
+            email.utils.mktime_tz(email.utils.parsedate_tz(date_str))
+        )
 
     # -------- BODY TEXT --------
     plain_text = extract_plain_text(payload)
@@ -166,8 +172,7 @@ def get_clean_email_text(message_id: str) -> str:
 
     body_text = normalize_text("\n".join(parts))
 
-
-    # -------- OCR TEXT (COMBINED ONCE) --------
+    # -------- OCR TEXT --------
     image_urls = extract_image_urls(html_content)
     ocr_texts = []
 
@@ -179,7 +184,7 @@ def get_clean_email_text(message_id: str) -> str:
     ocr_texts = list(dict.fromkeys(ocr_texts))  # dedupe
     combined_ocr_text = "\n".join(ocr_texts).strip()
 
-    # -------- FINAL TEXT --------
+    # -------- FINAL RAW TEXT --------
     final_parts = []
 
     if combined_ocr_text:
@@ -189,9 +194,8 @@ def get_clean_email_text(message_id: str) -> str:
 
     header_block = "\n".join(
         line for line in [
-            f"From: {sender}" if sender else "",
             f"Subject: {subject}" if subject else "",
-            f"Date: {date}" if date else ""
+            f"Date: {date_str}" if date_str else ""
         ] if line
     )
 
@@ -201,6 +205,12 @@ def get_clean_email_text(message_id: str) -> str:
     if body_text:
         final_parts.append("--- EMAIL BODY ---\n\n" + body_text)
 
-    return "\n\n".join(final_parts).strip()
+    raw_text = "\n\n".join(final_parts).strip()
 
-
+    # ✅ RETURN AS JSON (as requested)
+    return {
+        "gmail_message_id": msg["id"],
+        "subject": subject,
+        "received_at": received_at,
+        "raw_text": raw_text
+    }
