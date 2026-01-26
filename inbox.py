@@ -8,6 +8,8 @@ import numpy as np
 from bs4 import BeautifulSoup
 from PIL import Image
 from io import BytesIO
+from datetime import datetime
+
 
 from Connection import get_gmail_service
 
