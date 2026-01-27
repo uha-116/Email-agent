@@ -1,12 +1,25 @@
 # db_Persistor.py
+
 from datetime import datetime
 from db_Connection import get_db_connection
-from db_repository import (
+from db_Repository import (
     insert_email,
-    insert_opportunity,
+    insert_or_update_opportunity,
     insert_opportunity_details,
     insert_linkedin_event
 )
+
+
+def email_already_processed(cur, gmail_message_id: str) -> bool:
+    """
+    Checks if an email with this Gmail message ID
+    has already been processed.
+    """
+    cur.execute(
+        "SELECT 1 FROM emails WHERE gmail_message_id = %s;",
+        (gmail_message_id,)
+    )
+    return cur.fetchone() is not None
 
 
 def persist_email_payload(
@@ -15,6 +28,15 @@ def persist_email_payload(
     received_at: datetime,
     raw_body_text: str
 ) -> dict:
+    """
+    Persists a parsed email payload into the database.
+
+    - Skips if email already processed
+    - Inserts email always (once)
+    - Inserts OR updates opportunity based on decision logic
+    - Inserts LinkedIn events
+    """
+
     result = {
         "email_id": None,
         "opportunity_ids": [],
@@ -25,9 +47,15 @@ def persist_email_payload(
     cur = conn.cursor()
 
     try:
-        # ---------------------------
-        # 1. Insert EMAIL (always)
-        # ---------------------------
+        # --------------------------------------------------
+        # 0️⃣ Skip if already processed
+        # --------------------------------------------------
+        if email_already_processed(cur, gmail_message_id):
+            return result
+
+        # --------------------------------------------------
+        # 1️⃣ Insert EMAIL (always once)
+        # --------------------------------------------------
         email_id = insert_email(
             cur=cur,
             gmail_message_id=gmail_message_id,
@@ -41,12 +69,13 @@ def persist_email_payload(
 
         email_type = payload.get("email_type")
 
-        # ---------------------------
-        # 2. JOB PIPELINE
-        # ---------------------------
+        # --------------------------------------------------
+        # 2️⃣ JOB PIPELINE
+        # --------------------------------------------------
         if email_type == "JOB_PIPELINE":
             for opp in payload.get("opportunities", []):
-                opportunity_id = insert_opportunity(
+
+                opportunity_id = insert_or_update_opportunity(
                     cur=cur,
                     email_id=email_id,
                     company=opp.get("company"),
@@ -62,17 +91,20 @@ def persist_email_payload(
                     event_date=opp.get("event_date")
                 )
 
-                result["opportunity_ids"].append(opportunity_id)
+                if opportunity_id:
+                    result["opportunity_ids"].append(opportunity_id)
 
-                insert_opportunity_details(
-                    cur=cur,
-                    opportunity_id=opportunity_id,
-                    other_important_details=opp.get("other_important_details", {})
-                )
+                    insert_opportunity_details(
+                        cur=cur,
+                        opportunity_id=opportunity_id,
+                        other_important_details=opp.get(
+                            "other_important_details", {}
+                        )
+                    )
 
-        # ---------------------------
-        # 3. LINKEDIN NETWORKING
-        # ---------------------------
+        # --------------------------------------------------
+        # 3️⃣ LINKEDIN NETWORKING
+        # --------------------------------------------------
         elif email_type == "LINKEDIN_NETWORKING":
             linkedin = payload.get("linkedin_event")
             if linkedin:
@@ -83,7 +115,9 @@ def persist_email_payload(
                     person_title=linkedin.get("person_title"),
                     person_company=linkedin.get("person_company"),
                     interaction_type=linkedin.get("interaction_type"),
-                    requires_follow_up=linkedin.get("requires_follow_up", False)
+                    requires_follow_up=linkedin.get(
+                        "requires_follow_up", False
+                    )
                 )
                 result["linkedin_event_id"] = linkedin_event_id
 
