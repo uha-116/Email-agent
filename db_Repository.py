@@ -2,6 +2,85 @@
 import json
 from datetime import date, datetime
 
+# db_Repository.py
+
+STAGE_PRIORITY = {
+    "OPPORTUNITY_FOUND": 1,
+    "APPLIED": 2,
+    "SHORTLISTED": 3,
+    "ASSESSMENT": 4,
+    "INTERVIEW": 5,
+    "SELECTED": 6,
+    "REJECTED": 7
+}
+
+
+def get_stage_priority(stage: str) -> int:
+    return STAGE_PRIORITY.get(stage, 0)
+
+
+def decide_insert_or_update(
+    cur,
+    *,
+    company: str,
+    role: str | None,
+    new_stage: str
+):
+    """
+    Returns:
+        ("INSERT", None)
+        ("UPDATE", opportunity_id)
+        ("IGNORE", None)
+        ("AMBIGUOUS", None)
+    """
+
+    # 1️⃣ Fetch candidates
+    if role:
+        cur.execute(
+            """
+            SELECT id, pipeline_stage
+            FROM opportunities
+            WHERE company = %s AND role = %s;
+            """,
+            (company, role)
+        )
+    else:
+        cur.execute(
+            """
+            SELECT id, pipeline_stage
+            FROM opportunities
+            WHERE company = %s;
+            """,
+            (company,)
+        )
+
+    rows = cur.fetchall()
+
+    # 2️⃣ No existing record → INSERT
+    if not rows:
+        return "INSERT", None
+
+    # 3️⃣ Ambiguous (multiple roles, no role)
+    if not role and len(rows) > 1:
+        return "AMBIGUOUS", None
+
+    # 4️⃣ Choose best match by stage priority
+    new_priority = get_stage_priority(new_stage)
+
+    best_match = None
+    best_priority = -1
+
+    for opp_id, current_stage in rows:
+        curr_priority = get_stage_priority(current_stage)
+
+        if curr_priority <= new_priority and curr_priority > best_priority:
+            best_match = opp_id
+            best_priority = curr_priority
+
+    if best_match is None:
+        return "IGNORE", None
+
+    return "UPDATE", best_match
 
 
 def insert_email(

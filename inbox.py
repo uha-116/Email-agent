@@ -122,12 +122,19 @@ def extract_image_urls(html_content):
 
 def ocr_image_from_url(url):
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=5)
         img = Image.open(BytesIO(response.content)).convert("L")
-        text = pytesseract.image_to_string(np.array(img))
+
+        # ⏱️ Limit OCR time
+        text = pytesseract.image_to_string(
+            np.array(img),
+            timeout=3
+        )
         return normalize_ocr_text(text)
+
     except Exception:
         return ""
+
 
 def looks_like_html(text: str) -> bool:
     if not text:

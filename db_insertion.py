@@ -5,7 +5,7 @@ from email_analyser import analyze_email
 from db_Persistor import persist_email_payload
 
 START_DATE = "2025/01/01"
-MAX_EMAILS = 100  # safe batch
+MAX_EMAILS = 10  # safe batch
 
 def main():
     service = get_gmail_service()
