@@ -1,4 +1,4 @@
-FINAL_ANALYSIS_PROMPT = """ You analyze recruitment and LinkedIn emails.
+FINAL_ANALYSIS_PROMPT = """You analyze recruitment and LinkedIn emails.
 
 Input:
 - email_subject
@@ -104,4 +104,5 @@ IGNORE:
   "email_type": "IGNORE",
   "sender": "...",
   "subject": "..."
-}"""
+}
+"""

@@ -211,6 +211,7 @@ def insert_or_update_opportunity(
                 record_id
             )
         )
+        print("Updating the record",record_id)
         return record_id
 
 

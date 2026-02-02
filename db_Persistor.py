@@ -47,11 +47,6 @@ def persist_email_payload(
     cur = conn.cursor()
 
     try:
-        # --------------------------------------------------
-        # 0️⃣ Skip if already processed
-        # --------------------------------------------------
-        if email_already_processed(cur, gmail_message_id):
-            return result
 
         # --------------------------------------------------
         # 1️⃣ Insert EMAIL (always once)
