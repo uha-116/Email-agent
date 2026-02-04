@@ -18,6 +18,55 @@ from Connection import get_gmail_service
 # =========================================================
 # HELPERS
 # =========================================================
+# inbox.py
+
+# inbox.py
+
+STRONG_JOB_KEYWORDS = [
+    "application",
+    "applied",
+    "shortlisted",
+    "shortlist",
+    "assessment",
+    "test",
+    "coding",
+    "interview",
+    "offer",
+    "offer letter",
+    "selected",
+    "selection",
+    "onboarding",
+    "joining",
+    "hiring",
+    "recruitment",
+    "candidate portal",
+    "ctc",
+    "messaged",
+    "accepted" ,
+    "connect"
+
+]
+
+MEDIUM_JOB_KEYWORDS = [
+    "next step",
+    "further process",
+    "schedule",
+    "complete",
+    "confirm",
+    "submit",
+    "job",
+     "role",
+     "position",
+     "thank you",
+     "update",
+     "unfortunately",
+     "interest",
+     "congratulations"
+]
+
+
+
+
 
 def decode_base64(data):
     return base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
@@ -224,3 +273,34 @@ def get_clean_email_text(message_id: str) -> dict:
         "received_at": received_at,
         "raw_text": raw_text
     }
+
+# inbox.py
+
+def compute_job_confidence(text: str) -> float:
+    """
+    Returns confidence score between 0.0 and 1.0
+    """
+    if not text:
+        return 0.0
+
+    text = text.lower()
+
+    score = 0.0
+
+    # weights
+    STRONG_WEIGHT = 0.35
+    MEDIUM_WEIGHT = 0.15
+    WEAK_WEIGHT = 0.05
+
+    for kw in STRONG_JOB_KEYWORDS:
+        if kw in text:
+            score += STRONG_WEIGHT
+
+    for kw in MEDIUM_JOB_KEYWORDS:
+        if kw in text:
+            score += MEDIUM_WEIGHT
+
+
+    # cap score at 1.0
+    return min(score, 1.0)
+

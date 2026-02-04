@@ -1,8 +1,12 @@
 # db_Repository.py
+
 import json
 from datetime import date, datetime
 
-# db_Repository.py
+
+# =========================================================
+# 🔢 PIPELINE STAGE PRIORITY
+# =========================================================
 
 STAGE_PRIORITY = {
     "OPPORTUNITY_FOUND": 1,
@@ -19,6 +23,10 @@ def get_stage_priority(stage: str) -> int:
     return STAGE_PRIORITY.get(stage, 0)
 
 
+# =========================================================
+# 🧠 INSERT vs UPDATE DECISION
+# =========================================================
+
 def decide_insert_or_update(
     cur,
     *,
@@ -34,7 +42,6 @@ def decide_insert_or_update(
         ("AMBIGUOUS", None)
     """
 
-    # 1️⃣ Fetch candidates
     if role:
         cur.execute(
             """
@@ -56,15 +63,12 @@ def decide_insert_or_update(
 
     rows = cur.fetchall()
 
-    # 2️⃣ No existing record → INSERT
     if not rows:
         return "INSERT", None
 
-    # 3️⃣ Ambiguous (multiple roles, no role)
     if not role and len(rows) > 1:
         return "AMBIGUOUS", None
 
-    # 4️⃣ Choose best match by stage priority
     new_priority = get_stage_priority(new_stage)
 
     best_match = None
@@ -82,6 +86,10 @@ def decide_insert_or_update(
 
     return "UPDATE", best_match
 
+
+# =========================================================
+# 📩 EMAIL INSERT
+# =========================================================
 
 def insert_email(
     cur,
@@ -119,6 +127,10 @@ def insert_email(
     return cur.fetchone()[0]
 
 
+# =========================================================
+# 💼 OPPORTUNITY INSERT / UPDATE
+# =========================================================
+
 def insert_or_update_opportunity(
     cur,
     *,
@@ -135,10 +147,6 @@ def insert_or_update_opportunity(
     deadline: date | None,
     event_date: datetime | None
 ) -> int | None:
-    """
-    Inserts or updates an opportunity based on stage priority logic.
-    Returns opportunity_id if inserted/updated, else None.
-    """
 
     decision, record_id = decide_insert_or_update(
         cur,
@@ -147,9 +155,6 @@ def insert_or_update_opportunity(
         new_stage=pipeline_stage
     )
 
-    # ---------------------------
-    # INSERT
-    # ---------------------------
     if decision == "INSERT":
         cur.execute(
             """
@@ -188,9 +193,6 @@ def insert_or_update_opportunity(
         )
         return cur.fetchone()[0]
 
-    # ---------------------------
-    # UPDATE
-    # ---------------------------
     if decision == "UPDATE":
         cur.execute(
             """
@@ -211,40 +213,48 @@ def insert_or_update_opportunity(
                 record_id
             )
         )
-        print("Updating the record",record_id)
+        print("Updating the record", record_id)
         return record_id
 
-
-    # ---------------------------
-    # AMBIGUOUS or IGNORE
-    # ---------------------------
     return None
 
+
+# =========================================================
+# 🧾 OPPORTUNITY DETAILS (ALWAYS REPLACE ✅)
+# =========================================================
 
 def insert_opportunity_details(
     cur,
     opportunity_id: int,
-    other_important_details: dict
+    other_important_details: dict | None
 ) -> None:
-    if not other_important_details:
-        return
+    """
+    Always replace opportunity_details with the CURRENT mail's details.
+    Old details must NEVER persist.
+    """
+
+    details = other_important_details or {}
 
     query = """
-        INSERT INTO opportunity_details (
-            opportunity_id,
-            details
-        )
-        VALUES (%s, %s);
+        INSERT INTO opportunity_details (opportunity_id, details)
+        VALUES (%s, %s)
+        ON CONFLICT (opportunity_id)
+        DO UPDATE SET
+            details = EXCLUDED.details;
     """
 
     cur.execute(
         query,
         (
             opportunity_id,
-            json.dumps(other_important_details)
+            json.dumps(details)
         )
     )
 
+
+# =========================================================
+# 🤝 LINKEDIN EVENTS
+# =========================================================
 
 def insert_linkedin_event(
     cur,

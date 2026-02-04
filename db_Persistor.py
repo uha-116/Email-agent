@@ -31,10 +31,11 @@ def persist_email_payload(
     """
     Persists a parsed email payload into the database.
 
-    - Skips if email already processed
-    - Inserts email always (once)
-    - Inserts OR updates opportunity based on decision logic
-    - Inserts LinkedIn events
+    RULES:
+    - ALL emails are stored in emails table (including IGNORE)
+    - JOB_PIPELINE → opportunities + details
+    - LINKEDIN_NETWORKING → linkedin_events
+    - IGNORE → emails table ONLY
     """
 
     result = {
@@ -47,9 +48,8 @@ def persist_email_payload(
     cur = conn.cursor()
 
     try:
-
         # --------------------------------------------------
-        # 1️⃣ Insert EMAIL (always once)
+        # 1️⃣ ALWAYS INSERT EMAIL (INCLUDING IGNORE)
         # --------------------------------------------------
         email_id = insert_email(
             cur=cur,
@@ -60,12 +60,19 @@ def persist_email_payload(
             received_at=received_at,
             raw_body_text=raw_body_text
         )
-        result["email_id"] = email_id
 
+        result["email_id"] = email_id
         email_type = payload.get("email_type")
 
         # --------------------------------------------------
-        # 2️⃣ JOB PIPELINE
+        # 2️⃣ IGNORE → STOP AFTER EMAIL INSERT
+        # --------------------------------------------------
+        if email_type == "IGNORE":
+            conn.commit()
+            return result
+
+        # --------------------------------------------------
+        # 3️⃣ JOB PIPELINE
         # --------------------------------------------------
         if email_type == "JOB_PIPELINE":
             for opp in payload.get("opportunities", []):
@@ -98,7 +105,7 @@ def persist_email_payload(
                     )
 
         # --------------------------------------------------
-        # 3️⃣ LINKEDIN NETWORKING
+        # 4️⃣ LINKEDIN NETWORKING
         # --------------------------------------------------
         elif email_type == "LINKEDIN_NETWORKING":
             linkedin = payload.get("linkedin_event")
