@@ -8,11 +8,12 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 EMBEDDINGS_FILE = "dataset_embeddings.npy"
 QUESTIONS_FILE = "dataset_questions.pkl"
+DATA_JSON = "data.json"
 
 
-# -----------------------------
-# STEP 1: LOAD QUESTIONS FROM JSON
-# -----------------------------
+# =====================================================
+# LOAD QUESTIONS FROM data.json
+# =====================================================
 
 def load_questions(json_path):
     with open(json_path, "r", encoding="utf-8") as f:
@@ -28,127 +29,103 @@ def load_questions(json_path):
     return questions
 
 
-# -----------------------------
-# STEP 2: LOAD SBERT MODEL
-# -----------------------------
+# =====================================================
+# LOAD SBERT MODEL
+# =====================================================
 
 def load_model():
     return SentenceTransformer("all-MiniLM-L6-v2")
 
 
-# -----------------------------
-# STEP 3: LOAD OR UPDATE EMBEDDINGS
-# -----------------------------
+# =====================================================
+# CREATE OR UPDATE EMBEDDINGS
+# =====================================================
 
 def load_or_update_embeddings(model, current_questions):
-    
-    # If embeddings don't exist → create from scratch
+
     if not os.path.exists(EMBEDDINGS_FILE) or not os.path.exists(QUESTIONS_FILE):
-        print("No existing embeddings found. Creating new ones...")
+
         embeddings = model.encode(current_questions, normalize_embeddings=True)
+
         np.save(EMBEDDINGS_FILE, embeddings)
+
         with open(QUESTIONS_FILE, "wb") as f:
             pickle.dump(current_questions, f)
+
         return embeddings
 
-    # Load existing data
+    # Load existing
     old_embeddings = np.load(EMBEDDINGS_FILE)
+
     with open(QUESTIONS_FILE, "rb") as f:
         old_questions = pickle.load(f)
 
-    # Detect new questions
+    # detect new questions
     new_questions = [q for q in current_questions if q not in old_questions]
 
     if not new_questions:
-        print("No new questions detected.")
         return old_embeddings
-
-    print(f"Detected {len(new_questions)} new question(s). Embedding only new ones...")
 
     new_embeddings = model.encode(new_questions, normalize_embeddings=True)
 
-    # Append
     updated_embeddings = np.vstack([old_embeddings, new_embeddings])
     updated_questions = old_questions + new_questions
 
-    # Save updated
     np.save(EMBEDDINGS_FILE, updated_embeddings)
+
     with open(QUESTIONS_FILE, "wb") as f:
         pickle.dump(updated_questions, f)
 
     return updated_embeddings
 
 
-# -----------------------------
-# STEP 4: FIND TOP-K SIMILAR QUESTIONS
-# -----------------------------
+# =====================================================
+# INITIALIZE SBERT SYSTEM
+# =====================================================
 
-def find_top_k_similar(query, model, dataset_questions, dataset_embeddings, k=5):
-    query = query.strip().lower()
+class SBERTMatcher:
 
-    query_embedding = model.encode(
-        [query],
-        normalize_embeddings=True
-    )[0]
+    def __init__(self):
 
-    similarities = cosine_similarity(
-        [query_embedding],
-        dataset_embeddings
-    )[0]
+        self.model = load_model()
 
-    top_indices = np.argsort(similarities)[::-1][:k]
+        dataset_questions = load_questions(DATA_JSON)
 
-    results = []
-    for idx in top_indices:
-        results.append({
-            "score": round(float(similarities[idx]), 4),
-            "question": dataset_questions[idx]
-        })
-
-    return results
-
-
-# -----------------------------
-# STEP 5: MAIN RUNNER
-# -----------------------------
-
-def main():
-    JSON_PATH = "data.json"
-
-    print("Loading questions from data.json...")
-    dataset_questions = load_questions(JSON_PATH)
-    print(f"Total questions in JSON: {len(dataset_questions)}\n")
-
-    print("Loading SBERT model...")
-    model = load_model()
-
-    print("Loading or updating embeddings...")
-    dataset_embeddings = load_or_update_embeddings(model, dataset_questions)
-
-    # Reload updated question list to stay consistent
-    with open(QUESTIONS_FILE, "rb") as f:
-        dataset_questions = pickle.load(f)
-
-    print("\nReady. Type a question (or 'exit'):\n")
-
-    while True:
-        user_query = input("user > ").strip()
-        if user_query.lower() in ["exit", "quit"]:
-            break
-
-        matches = find_top_k_similar(
-            user_query,
-            model,
-            dataset_questions,
-            dataset_embeddings,
-            k=5
+        self.dataset_embeddings = load_or_update_embeddings(
+            self.model,
+            dataset_questions
         )
 
-        print("\nTop matches:")
-        for m in matches:
-            print(f"  score={m['score']}  |  {m['question']}")
-        print("-" * 50)
+        with open(QUESTIONS_FILE, "rb") as f:
+            self.dataset_questions = pickle.load(f)
+
+    # -------------------------------------------------
+
+    def find_top_matches(self, query, top_k=3):
+
+        query = query.strip().lower()
+
+        query_embedding = self.model.encode(
+            [query],
+            normalize_embeddings=True
+        )[0]
+
+        similarities = cosine_similarity(
+            [query_embedding],
+            self.dataset_embeddings
+        )[0]
+
+        top_indices = np.argsort(similarities)[::-1][:top_k]
+
+        results = []
+
+        for idx in top_indices:
+
+            results.append({
+                "question": self.dataset_questions[idx],
+                "score": float(round(similarities[idx], 4))
+            })
+
+        return results
 
 
-if __name__ == "__main__":
-    main()

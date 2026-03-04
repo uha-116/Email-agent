@@ -1,172 +1,219 @@
 # filter_extractor.py
 
 import re
-from dateutil import parser as dateparser
 
 
-STAGE_KEYWORDS = {
-    "interview": "INTERVIEW",
-    "assessment": "ASSESSMENT",
-    "selected": "SELECTED",
-    "rejected": "REJECTED",
-    "applied": "APPLIED",
-    "shortlisted": "SHORTLISTED"
+# =========================================================
+# TIME SEMANTIC MAPPINGS (bucket -> variants)
+# =========================================================
+
+TIME_MAPPINGS = {
+    "TODAY": ["today"],
+    "TOMORROW": ["tomorrow"],
+    "THIS_WEEK": ["this week"],
+    "RECENT": [
+        "recent",
+        "recently",
+        "latest",
+        "new",
+        "last week",
+        "past few days",
+        "in the last few days",
+        "right now",
+        "past",
+        "earlier",
+        "previously"
+        "previous",
+        "lastly",
+        "last"
+    ],
+    "FUTURE": [
+        "upcoming",
+        "future",
+        "coming up",
+        "next week",
+        "coming",
+        "next"
+    ],
+    "MISSED": ["miss", "missed", "forget", "forgot", "forgotten"]
 }
 
+# =========================================================
+# SUPERLATIVE MAPPINGS
+# =========================================================
 
-ACTION_REQUIRED_KEYWORDS = [
-    "need to act",
-    "act upon",
-    "pending",
-    "incomplete",
-    "requires action",
-    ""
-]
+SUPERLATIVE_MAPPINGS = {
+    "MOST": ["most", "highest", "top", "maximum", "max","common","most common"],
+    "LEAST": ["least", "lowest", "minimum", "min"]
+}
+
+# ---------------------------------------------------------
+# Relative Time Pattern (captures number)
+# Example:
+#   last 5 days
+#   past 2 weeks
+#   next 3 months
+# ---------------------------------------------------------
+
+RELATIVE_TIME_PATTERN = re.compile(
+    r"(last|past|next)\s+(\d+)\s+(day|days|week|weeks|month|months|year|years)",
+    re.IGNORECASE
+)
 
 
-def detect_filters(text, entity_cache):
+# =========================================================
+# SALARY PATTERN (STRICT — salary-only units)
+# =========================================================
+
+SALARY_PATTERN = re.compile(
+    r"(above|greater than|more than|below|less than)?\s*"
+    r"(\d+(?:\.\d+)?)\s*"
+    r"(k|lakh|lakhs|lpa|per month|per year|monthly|yearly|annum)",
+    re.IGNORECASE
+)
+
+
+
+
+# =========================================================
+# MAIN FILTER DETECTOR
+# =========================================================
+
+def detect_filters(text: str, entity_cache) -> dict:
+    """
+    Extract ONLY dynamic placeholders defined in data.json:
+        - company
+        - role
+        - location
+        - time_range
+        - number (if explicitly mentioned)
+        - salary_amount
+        - salary_period
+    """
+
     text = text.lower()
     filters = {}
 
-    # ----------------------------
-    # 1️⃣ Entity Detection
-    # ----------------------------
+    # -----------------------------------------------------
+    # 7️⃣ SUPERLATIVE DETECTION (MOST / LEAST)
+    # -----------------------------------------------------
+    for label, keywords in SUPERLATIVE_MAPPINGS.items():
+        for kw in keywords:
+            if re.search(rf"\b{re.escape(kw)}\b", text):
+                filters["superlative"] = label
+                break
+        if "superlative" in filters:
+            break
+
+    # -----------------------------------------------------
+    # 1️⃣ COMPANY
+    # -----------------------------------------------------
     company = entity_cache.match_company(text)
     if company:
         filters["company"] = company
 
+    # -----------------------------------------------------
+    # 2️⃣ ROLE
+    # -----------------------------------------------------
     role = entity_cache.match_role(text)
     if role:
-        if role=='internship':
-            filters["role"] = 'intern'
+        if role in ["internship", "internships"]:
+            filters["role"] = "intern"
         else:
-            filters["role"]=role
+            filters["role"] = role
 
+    # -----------------------------------------------------
+    # 3️⃣ LOCATION
+    # -----------------------------------------------------
     location = entity_cache.match_location(text)
     if location:
         filters["location"] = location
 
-    # ----------------------------
-    # Stage Detection (Priority-Based)
-    # ----------------------------
+    # -----------------------------------------------------
+    # 4️⃣ RELATIVE TIME WITH NUMBER (Highest Priority)
+    # -----------------------------------------------------
+    relative_match = RELATIVE_TIME_PATTERN.search(text)
+    relative_time_detected = False
 
-    NEGATION_WORDS = ["not", "havent", "didnt", "without"]
+    if relative_match:
+        direction = relative_match.group(1).lower()
+        number = int(relative_match.group(2))
 
-    STAGE_PRIORITY = {
-        "INTERVIEW": 6,
-        "ASSESSMENT": 5,
-        "SELECTED": 4,
-        "REJECTED": 3,
-        "APPLIED": 2,
-        "OPPORTUNITY_FOUND": 1
-    }
+        if direction in ["last", "past"]:
+            filters["time_range"] = "PAST"
+        elif direction == "next":
+            filters["time_range"] = "FUTURE"
 
-    detected_stages = []
+        filters["number"] = number
+        relative_time_detected = True
 
-    for word, stage in STAGE_KEYWORDS.items():
-        if word in text:
-            # Check if stage word is negated nearby
-            negated = any(neg in text for neg in NEGATION_WORDS)
+    else:
+        # -------------------------------------------------
+        # 5️⃣ Semantic Time Bucket Matching
+        # -------------------------------------------------
+        for mapped_value, phrases in TIME_MAPPINGS.items():
+            for phrase in phrases:
+                if re.search(rf"\b{re.escape(phrase)}\b", text):
+                    filters["time_range"] = mapped_value
+                    break
+            if "time_range" in filters:
+                break
 
-            if not negated:
-                detected_stages.append(stage)
+    # -----------------------------------------------------
+    # 6️⃣ SALARY EXTRACTION (ONLY if NOT relative time)
+    # -----------------------------------------------------
+    if not relative_time_detected:
 
-    # If we found positive stages, pick highest priority
-    if detected_stages:
-        highest_stage = max(
-            detected_stages,
-            key=lambda s: STAGE_PRIORITY.get(s, 0)
-        )
-        filters["pipeline_stage"] = [highest_stage]
+        salary_match = SALARY_PATTERN.search(text)
 
-    # If no stage found → check generic job words
-    elif any(word in text for word in ["job", "jobs", "opportunity", "opportunities","interns","internships"]):
-        filters["pipeline_stage"] = ["OPPORTUNITY_FOUND"]
+        if salary_match:
+            amount = float(salary_match.group(2))
+            unit = salary_match.group(3).lower()
 
+            # Normalize amount
+            if unit in ["lakh", "lakhs", "lpa"]:
+                amount *= 100000
+                filters["salary_period"] = "year"
 
+            elif unit in ["annum", "yearly", "per year"]:
+                filters["salary_period"] = "year"
 
-    # ----------------------------
-    # 3️⃣ Action Required
-    # ----------------------------
-    if any(keyword in text for keyword in ACTION_REQUIRED_KEYWORDS):
-        filters["action_required"] = True
+            elif unit in ["monthly", "per month","stipend"]:
+                filters["salary_period"] = "month"
 
-    # ----------------------------
-    # 4️⃣ Time Detection
-    # ----------------------------
+            elif unit == "k":
+                amount *= 1000
 
-    # ----------------------------
-    # Relative Day Detection
-    # ----------------------------
+            filters["salary_amount"] = amount
 
-    day_match = re.search(r"(\d+)\s*day", text)
+            # -----------------------------------------------------
+            # SALARY OPERATOR DETECTION
+            # -----------------------------------------------------
 
-    if day_match:
-        number = int(day_match.group(1))
+            if "salary_amount" in filters:
 
-        # Check if context implies past range
-        if any(word in text for word in ["last", "past", "previous", "back", "ago"]):
-            filters["last_n_days"] = number
+                if re.search(r"\b(around|near|nearby|near to)\b", text):
+                    filters["salary_mode"] = "RANGE"
 
+                elif re.search(r"\b(above|greater than|more than|over)\b", text):
+                    filters["salary_mode"] = "GT"
 
-    # Today / Tomorrow
-    if "today" in text:
-        filters["event_date"] = "TODAY"
+                elif re.search(r"\b(below|less than|under)\b", text):
+                    filters["salary_mode"] = "LT"
 
-    if "tomorrow" in text:
-        filters["event_date"] = "TOMORROW"
+                else:
+                    filters["salary_mode"] = "EXACT"
+        # -----------------------------------------------------
+        # 7️⃣ SALARY PERIOD WITHOUT NUMBER
+        # -----------------------------------------------------
 
-    if "this week" in text:
-        filters["time_range"] = "THIS_WEEK"
-    
-        # Recently / Latest
-    if any(word in text for word in ["recent", "recently","latest", "new"]):
-        filters["time_range"] = "RECENT"
+        if "salary_period" not in filters:
+            if re.search(r"\bmonthly\b|\bper month\b|\bmonth\b|\bstipend\b", text):
+                filters["salary_period"] = "month"
 
+            elif re.search(r"\byearly\b|\bper year\b|\bannum\b|\blpa\b", text):
+                filters["salary_period"] = "year"
 
-    # Specific Date
-    try:
-        if any(month in text for month in [
-        "jan", "feb", "mar", "apr", "may", "jun",
-        "jul", "aug", "sep", "oct", "nov", "dec"
-    ]):
-            parsed_date = dateparser.parse(text)
-            if parsed_date:
-                filters["parsed_date"] = parsed_date.date().isoformat()
-
-    except:
-        pass
-
-    # ----------------------------
-    # 5️⃣ Salary Detection
-    # ----------------------------
-
-    salary_match = re.search(
-        r"(above|greater than|more than|below|less than)?\s*(\d+(?:\.\d+)?)\s*(k|lakh|lakhs|lpa|per month|per year|month|year)?",
-        text
-    )
-
-    if salary_match and salary_match.group(3):
-        comparator = salary_match.group(1)
-        amount = float(salary_match.group(2))
-        unit = salary_match.group(3)
-
-        # Normalize amount
-        if unit in ["lakh", "lakhs", "lpa"]:
-            amount *= 100000
-            filters["salary_period"] = "YEARLY"
-        elif unit == "k":
-            amount *= 1000
-        elif unit in ["per month", "month"]:
-            filters["salary_period"] = "MONTHLY"
-        elif unit in ["per year", "year"]:
-            filters["salary_period"] = "YEARLY"
-
-        if comparator in ["above", "greater than", "more than"]:
-            filters["salary_min"] = amount
-        elif comparator in ["below", "less than"]:
-            filters["salary_max"] = amount
-        else:
-            filters["salary_exact"] = amount
+        
 
     return filters

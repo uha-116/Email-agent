@@ -1,6 +1,5 @@
-from __future__ import annotations
-
-from typing import Any, Iterable, Mapping
+from typing import Any, Mapping
+from build_where import build_where
 
 
 ALLOWED_COLUMNS = {
@@ -14,280 +13,205 @@ ALLOWED_COLUMNS = {
     "location",
     "salary_amount",
     "salary_period",
+    "min_experience_years",
+    "max_experience_years",
     "last_updated_at",
     "details",
-}
-
-ALLOWED_PIPELINE_STAGES = {
-    "OPPORTUNITY_FOUND",
-    "APPLIED",
-    "SHORTLISTED",
-    "ASSESSMENT",
-    "INTERVIEW",
-    "SELECTED",
-    "REJECTED",
-}
-
-ALLOWED_TIME_RANGES = {"FUTURE", "PAST", "THIS_WEEK", "RECENT"}
-ALLOWED_DEADLINE_STATUS = {"UPCOMING", "MISSED"}
-ALLOWED_EVENT_DATE = {"TODAY", "TOMORROW", "EXISTS"}
-
-ALLOWED_FILTERS = {
-    "company",
-    "role",
-    "location",
-    "pipeline_stage",
-    "action_required",
-    "salary_exists",
-    "time_range",
-    "deadline_status",
-    "event_date",
+    "interaction_type",
+    "person_name",
+    "person_title",
+    "person_company",
+    "subject",
+    "sender",
+    "received_at",
 }
 
 
-def sanitize_column(column: str) -> str:
+def _col(column: str, alias: str) -> str:
     if column not in ALLOWED_COLUMNS:
-        raise ValueError(f"Invalid column name: {column}")
-    return column
+        raise ValueError(f"Invalid column: {column}")
+
+    if column == "details":
+        return "d.details"
+
+    return f"{alias}.{column}"
 
 
-def _quote_literal(value: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError("Expected string value")
-    return "'" + value.replace("'", "''") + "'"
+def build_sql(query_json: Mapping[str, Any]) -> dict[str, str]:
 
-
-def _column_expr(column: str) -> str:
-    sanitize_column(column)
-    return "d.details" if column == "details" else f"o.{column}"
-
-
-def _non_empty_str(value: Any, field: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"{field} must be a string")
-    value = value.strip()
-    if not value:
-        raise ValueError(f"{field} must be a non-empty string")
-    return value
-
-
-def _bool_value(value: Any, field: str) -> bool:
-    if not isinstance(value, bool):
-        raise ValueError(f"{field} must be boolean")
-    return value
-
-
-def _string_list(values: Any, field: str) -> list[str]:
-    if not isinstance(values, Iterable) or isinstance(values, (str, bytes)):
-        raise ValueError(f"{field} must be a list of strings")
-
-    items = []
-    for item in values:
-        if not isinstance(item, str):
-            raise ValueError(f"{field} must contain only strings")
-        item = item.strip()
-        if not item:
-            raise ValueError(f"{field} cannot contain empty values")
-        items.append(item)
-
-    if not items:
-        raise ValueError(f"{field} cannot be empty")
-
-    return items
-
-
-def build_where(filters: Mapping[str, Any] | None) -> str:
-    if not filters:
-        return ""
-
-    if not isinstance(filters, Mapping):
-        raise ValueError("filters must be a mapping")
-
-    unknown_keys = set(filters.keys()) - ALLOWED_FILTERS
-    if unknown_keys:
-        raise ValueError(f"Unsupported filters: {sorted(unknown_keys)}")
-
-    conditions: list[str] = []
-
-    for key, value in filters.items():
-        if value is None:
-            continue
-
-        if key == "company":
-            company = _non_empty_str(value, "company")
-            conditions.append(f"o.company = {_quote_literal(company)}")
-
-        elif key == "role":
-            role = _non_empty_str(value, "role")
-            conditions.append(f"o.role ILIKE {_quote_literal(f'%{role}%')}")
-
-        elif key == "location":
-            location = _non_empty_str(value, "location")
-            conditions.append(f"o.location ILIKE {_quote_literal(f'%{location}%')}")
-
-        elif key == "pipeline_stage":
-            stages = _string_list(value, "pipeline_stage")
-            invalid = [s for s in stages if s not in ALLOWED_PIPELINE_STAGES]
-            if invalid:
-                raise ValueError(f"Invalid pipeline_stage values: {invalid}")
-            stage_sql = ", ".join(_quote_literal(stage) for stage in stages)
-            conditions.append(f"o.pipeline_stage IN ({stage_sql})")
-
-        elif key == "action_required":
-            action_required = _bool_value(value, "action_required")
-            conditions.append(
-                f"o.action_required = {'TRUE' if action_required else 'FALSE'}"
-            )
-
-        elif key == "salary_exists":
-            salary_exists = _bool_value(value, "salary_exists")
-            if salary_exists:
-                conditions.append("o.salary_amount IS NOT NULL")
-
-        elif key == "time_range":
-            time_range = _non_empty_str(value, "time_range").upper()
-            if time_range not in ALLOWED_TIME_RANGES:
-                raise ValueError(f"Invalid time_range: {time_range}")
-
-            if time_range == "FUTURE":
-                conditions.append(
-                    "COALESCE(o.event_date, o.deadline) > CURRENT_DATE"
-                )
-            elif time_range == "PAST":
-                conditions.append(
-                    "COALESCE(o.event_date, o.deadline) < CURRENT_DATE"
-                )
-            elif time_range in {"THIS_WEEK", "RECENT"}:
-                conditions.append(
-                    "o.last_updated_at >= CURRENT_DATE - INTERVAL '7 days'"
-                )
-
-        elif key == "deadline_status":
-            deadline_status = _non_empty_str(value, "deadline_status").upper()
-            if deadline_status not in ALLOWED_DEADLINE_STATUS:
-                raise ValueError(f"Invalid deadline_status: {deadline_status}")
-
-            if deadline_status == "UPCOMING":
-                conditions.append(
-                    "COALESCE(o.deadline, o.event_date) >= CURRENT_DATE"
-                )
-            elif deadline_status == "MISSED":
-                conditions.append(
-                    "COALESCE(o.deadline, o.event_date) < CURRENT_DATE"
-                )
-
-        elif key == "event_date":
-            event_date = _non_empty_str(value, "event_date").upper()
-            if event_date not in ALLOWED_EVENT_DATE:
-                raise ValueError(f"Invalid event_date filter: {event_date}")
-
-            if event_date == "TODAY":
-                conditions.append(
-                    "DATE(COALESCE(o.event_date, o.deadline)) = CURRENT_DATE"
-                )
-            elif event_date == "TOMORROW":
-                conditions.append(
-                    "DATE(COALESCE(o.event_date, o.deadline)) = CURRENT_DATE + INTERVAL '1 day'"
-                )
-            elif event_date == "EXISTS":
-                conditions.append(
-                    "COALESCE(o.event_date, o.deadline) IS NOT NULL"
-                )
-
-    if not conditions:
-        return ""
-
-    return "WHERE " + " AND ".join(conditions)
-
-
-def build_sql(query_json: Mapping[str, Any]) -> str:
-    if not isinstance(query_json, Mapping):
-        raise ValueError("query_json must be a mapping")
-
-    projection_raw = query_json.get("projection", [])
-    if projection_raw is None:
-        projection_raw = []
-
-    if not isinstance(projection_raw, list):
-        raise ValueError("projection must be a list")
-
-    projection = list(projection_raw)
-    operation = query_json.get("operation")
+    projection = list(query_json.get("projection", []))
     group_by = query_json.get("group_by")
-    limit = query_json.get("limit")
     filters = query_json.get("filters", {})
+    capability = query_json.get("capability")
 
-    if not isinstance(operation, str):
-        raise ValueError("operation must be a string")
+    # -------------------------------------------------
+    # BASE SWITCH
+    # -------------------------------------------------
 
-    operation = operation.upper()
+    if capability == "LINKEDIN_STATUS":
+        base = """
+FROM linkedin_events le
+LEFT JOIN emails e ON le.email_id = e.id
+""".strip()
+        sort_column = "e.received_at"
+        base_alias = "le"
+    else:
+        base = "FROM opportunities o"
+        sort_column = "o.last_updated_at"
+        base_alias = "o"
 
-    if not isinstance(filters, Mapping):
-        raise ValueError("filters must be a mapping")
+    where_clause = build_where(filters, capability)
 
-    join_details = "details" in projection or group_by == "details"
+    superlative = filters.get("superlative")
 
-    base = "FROM opportunities o"
-    if join_details:
-        base += " LEFT JOIN opportunity_details d ON o.id = d.opportunity_id"
+    # -------------------------------------------------
+    # DETAILS JOIN LOGIC
+    # -------------------------------------------------
 
-    where_clause = build_where(filters)
+    needs_details_join = (
+        "details" in projection or group_by == "details"
+    )
 
-    if operation == "COUNT":
-        return f"""
+    if needs_details_join:
+        base += "\nLEFT JOIN opportunity_details d ON o.id = d.opportunity_id"
+
+    # =====================================================
+    # COUNT QUERY
+    # =====================================================
+
+    if superlative and not group_by:
+        count_sql = None
+
+    elif group_by:
+
+        group_col = _col(group_by, base_alias)
+
+        null_filter = f"{group_col} IS NOT NULL"
+
+        if where_clause:
+            where_clause += f" AND {null_filter}"
+        else:
+            where_clause = f"WHERE {null_filter}"
+
+        direction = "DESC"
+        limit_clause = ""
+
+        if superlative == "LEAST":
+            direction = "ASC"
+
+        if superlative:
+            limit_clause = "\nLIMIT 1"
+
+        count_sql = f"""
+SELECT {group_col}, COUNT(*) AS total
+{base}
+{where_clause}
+GROUP BY {group_col}
+ORDER BY total {direction}{limit_clause};
+""".strip()
+
+    else:
+
+        count_sql = f"""
 SELECT COUNT(*) AS total
 {base}
 {where_clause};
 """.strip()
 
-    if operation == "LIST":
-        if "company" not in projection:
-            projection.insert(0, "company")
-        if "role" not in projection:
-            projection.insert(1, "role")
+    # =====================================================
+    # LIST QUERY
+    # =====================================================
 
-        select_parts = [_column_expr(col) for col in projection]
-        projection_sql = ", ".join(select_parts)
+    if not projection:
+        projection = ["company", "role"]
 
-        sql = f"""
-SELECT {projection_sql}
-{base}
-{where_clause}
-ORDER BY o.last_updated_at DESC
-""".strip()
+    # Inner select columns (with table alias)
+    select_columns = [
+        _col(col, base_alias)
+        for col in projection
+        if col in ALLOWED_COLUMNS
+    ]
 
-        if limit is not None:
-            if isinstance(limit, bool):
-                raise ValueError("limit must be an integer")
-            limit_int = int(limit)
-            if limit_int <= 0:
-                raise ValueError("limit must be greater than 0")
-            sql += f"\nLIMIT {limit_int}"
+    select_sql = ", ".join(select_columns)
 
-        return sql + ";"
+    # Outer select columns (without table alias)
+    outer_select = ", ".join(
+        col.split(".")[-1] for col in select_columns
+    )
 
-    if operation == "BOOLEAN":
-        return f"""
-SELECT CASE
-    WHEN COUNT(*) > 0 THEN TRUE
-    ELSE FALSE
-END AS result
-{base}
-{where_clause};
-""".strip()
+    if group_by:
 
-    if operation == "SUMMARY":
-        if not isinstance(group_by, str):
-            raise ValueError("group_by is required for SUMMARY")
+        if superlative:
 
-        group_by_expr = _column_expr(group_by)
+            direction = "DESC" if superlative == "MOST" else "ASC"
 
-        return f"""
-SELECT {group_by_expr}, COUNT(*) AS total
-{base}
-{where_clause}
-GROUP BY {group_by_expr}
-ORDER BY total DESC;
-""".strip()
+            list_sql = f"""
+    SELECT {select_sql}
+    {base}
+    WHERE {base_alias}.{group_by} = (
+        SELECT {base_alias}.{group_by}
+        {base}
+        WHERE {base_alias}.{group_by} IS NOT NULL
+        GROUP BY {base_alias}.{group_by}
+        ORDER BY COUNT(*) {direction}
+        LIMIT 1
+    )
+    ORDER BY {sort_column} DESC
+    LIMIT 15;
+    """.strip()
 
-    raise ValueError(f"Unsupported operation: {operation}")
+        else:
+
+            group_col_inner = _col(group_by, base_alias)
+            sort_col_name = sort_column.split(".")[-1]
+
+            list_sql = f"""
+    SELECT {outer_select}
+    FROM (
+        SELECT
+            {select_sql},
+            {sort_column},
+            ROW_NUMBER() OVER (
+                PARTITION BY {group_col_inner}
+                ORDER BY {sort_column} DESC
+            ) AS rn
+        {base}
+        {where_clause}
+    ) sub
+    WHERE rn <= 15
+    ORDER BY sub.{group_by}, sub.{sort_col_name} DESC;
+    """.strip()
+
+    else:
+
+        if superlative and capability == "SALARY_STATUS":
+
+            order_col = f"{base_alias}.salary_amount"
+            direction = "DESC" if superlative == "MOST" else "ASC"
+
+            if where_clause:
+                where_clause += f" AND {order_col} IS NOT NULL"
+            else:
+                where_clause = f"WHERE {order_col} IS NOT NULL"
+
+            list_sql = f"""
+    SELECT {select_sql}
+    {base}
+    {where_clause}
+    ORDER BY {order_col} {direction}
+    LIMIT 1;
+    """.strip()
+
+        else:
+
+            list_sql = f"""
+    SELECT {select_sql}
+    {base}
+    {where_clause}
+    ORDER BY {sort_column} DESC;
+    """.strip()
+
+    return {
+        "count_sql": count_sql,
+        "list_sql": list_sql,
+    }
