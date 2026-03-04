@@ -85,20 +85,29 @@ def get_header(headers, name):
 
 JUNK_CHARS_REGEX = re.compile(r"[\ufeff\u2007\u200b\u200c\u200d\xa0͏]")
 
+URL_PATTERN = re.compile(r"http[s]?://\S+", re.IGNORECASE)
+
+
 def normalize_text(text: str) -> str:
     if not text:
         return ""
 
     text = html.unescape(text)
     text = JUNK_CHARS_REGEX.sub(" ", text)
+
+    # ✅ REMOVE URLS
+    text = URL_PATTERN.sub("", text)
+
     text = re.sub(r"\r\n", "\n", text)
     text = re.sub(r"\n{2,}", "\n", text)
     text = re.sub(r"[ \t]+", " ", text)
 
     cleaned_lines = []
     prev = None
+
     for line in text.split("\n"):
         line = line.strip()
+
         if line and line != prev:
             cleaned_lines.append(line)
             prev = line
