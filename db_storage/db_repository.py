@@ -47,7 +47,7 @@ def decide_insert_or_update(
             """
             SELECT id, pipeline_stage
             FROM opportunities
-            WHERE company = %s AND role = %s;
+            WHERE company ILIKE %s AND role ILIKE %s;
             """,
             (company, role)
         )
@@ -56,7 +56,7 @@ def decide_insert_or_update(
             """
             SELECT id, pipeline_stage
             FROM opportunities
-            WHERE company = %s;
+            WHERE company ILIKE %s;
             """,
             (company,)
         )
@@ -145,7 +145,8 @@ def insert_or_update_opportunity(
     pipeline_stage: str,
     action_required: bool,
     deadline: date | None,
-    event_date: datetime | None
+    event_date: datetime | None,
+    received_at: datetime,
 ) -> int | None:
 
     decision, record_id = decide_insert_or_update(
@@ -173,7 +174,7 @@ def insert_or_update_opportunity(
                 event_date,
                 last_updated_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
             """,
             (
@@ -188,7 +189,8 @@ def insert_or_update_opportunity(
                 pipeline_stage,
                 action_required,
                 deadline,
-                event_date
+                event_date,
+                received_at
             )
         )
         return cur.fetchone()[0]
@@ -210,6 +212,7 @@ def insert_or_update_opportunity(
                 action_required,
                 deadline,
                 event_date,
+                received_at,
                 record_id
             )
         )
@@ -265,7 +268,48 @@ def insert_linkedin_event(
     interaction_type: str,
     requires_follow_up: bool
 ) -> int:
-    query = """
+
+    # 🔎 Check if recruiter already exists
+    cur.execute(
+        """
+        SELECT id
+        FROM linkedin_events
+        WHERE person_name ILIKE %s
+        AND person_company ILIKE %s;
+        """,
+        (person_name, person_company)
+    )
+
+    row = cur.fetchone()
+
+    # 🔁 UPDATE existing event
+    if row:
+        event_id = row[0]
+
+        cur.execute(
+            """
+            UPDATE linkedin_events
+            SET
+                email_id = %s,
+                person_title = %s,
+                interaction_type = %s,
+                requires_follow_up = %s
+            WHERE id = %s;
+            """,
+            (
+                email_id,
+                person_title,
+                interaction_type,
+                requires_follow_up,
+                event_id
+            )
+        )
+
+        return event_id
+
+    # ➕ INSERT new event
+    cur.execute(
+        """
         INSERT INTO linkedin_events (
             email_id,
             person_name,
@@ -276,10 +320,7 @@ def insert_linkedin_event(
         )
         VALUES (%s, %s, %s, %s, %s, %s)
         RETURNING id;
-    """
-
-    cur.execute(
-        query,
+    """,
         (
             email_id,
             person_name,
@@ -289,4 +330,5 @@ def insert_linkedin_event(
             requires_follow_up
         )
     )
+
     return cur.fetchone()[0]
