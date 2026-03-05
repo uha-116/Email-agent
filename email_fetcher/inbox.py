@@ -12,7 +12,7 @@ from io import BytesIO
 from datetime import datetime
 
 
-from Connection import get_gmail_service
+from connection import get_gmail_service
 
 
 # =========================================================

@@ -1,8 +1,8 @@
 # db_Persistor.py
 
 from datetime import datetime
-from db_Connection import get_db_connection
-from db_Repository import (
+from db_connection import get_db_connection
+from db_repository import (
     insert_email,
     insert_or_update_opportunity,
     insert_opportunity_details,
@@ -54,7 +54,7 @@ def persist_email_payload(
         if email_type == "IGNORE":
             return result
 
-            
+
         # --------------------------------------------------
         # 1️⃣ ALWAYS INSERT EMAIL (INCLUDING IGNORE)
         # --------------------------------------------------

@@ -1,11 +1,13 @@
 import time
 from datetime import datetime
 
-from Connection import get_gmail_service
-from inbox import get_clean_email_text,compute_job_confidence
-from email_analyser import analyze_email
-from db_Persistor import persist_email_payload, email_already_processed
-from db_Connection import get_db_connection
+from email_fetcher.connection import get_gmail_service
+from email_fetcher.inbox import get_clean_email_text, compute_job_confidence
+
+from email_analyser.email_analyser import analyze_email
+
+from db_persistor import persist_email_payload, email_already_processed
+from db_connection import get_db_connection
 
 
 # =========================================================
