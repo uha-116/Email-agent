@@ -49,6 +49,13 @@ def persist_email_payload(
 
     try:
         # --------------------------------------------------
+        # 2️⃣ IGNORE → STOP AFTER EMAIL INSERT
+        # --------------------------------------------------
+        if email_type == "IGNORE":
+            return result
+
+            
+        # --------------------------------------------------
         # 1️⃣ ALWAYS INSERT EMAIL (INCLUDING IGNORE)
         # --------------------------------------------------
         email_id = insert_email(
@@ -63,13 +70,6 @@ def persist_email_payload(
 
         result["email_id"] = email_id
         email_type = payload.get("email_type")
-
-        # --------------------------------------------------
-        # 2️⃣ IGNORE → STOP AFTER EMAIL INSERT
-        # --------------------------------------------------
-        if email_type == "IGNORE":
-            conn.commit()
-            return result
 
         # --------------------------------------------------
         # 3️⃣ JOB PIPELINE
