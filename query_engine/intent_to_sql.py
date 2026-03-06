@@ -1,9 +1,9 @@
 import json
 
-from sbert_model import SBERTMatcher
-from filter_extraction import detect_filters
-from entity_Cache import EntityCache
-from sql_builder import build_sql
+from query_engine.sbert_model import SBERTMatcher
+from query_engine.filter_extraction import detect_filters
+from query_engine.entity_Cache import EntityCache
+from query_engine.sql_builder import build_sql
 
 
 SIMILARITY_THRESHOLD = 0.6

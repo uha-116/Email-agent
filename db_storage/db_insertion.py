@@ -6,8 +6,8 @@ from email_fetcher.inbox import get_clean_email_text, compute_job_confidence
 
 from email_analyser.email_analyser import analyze_email
 
-from db_persistor import persist_email_payload, email_already_processed
-from db_connection import get_db_connection
+from db_storage.db_persistor import persist_email_payload, email_already_processed
+from db_storage.db_connection import get_db_connection
 
 
 # =========================================================

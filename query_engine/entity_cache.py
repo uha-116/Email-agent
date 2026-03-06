@@ -2,7 +2,7 @@
 
 import re
 from rapidfuzz import fuzz, process
-from db_Connection_test import get_db_connection
+from db_storage.db_connection import get_db_connection
 
 
 class EntityCache:

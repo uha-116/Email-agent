@@ -1,5 +1,5 @@
 from typing import Any, Mapping
-from build_where import build_where
+from query_engine.build_where import build_where
 
 
 ALLOWED_COLUMNS = {

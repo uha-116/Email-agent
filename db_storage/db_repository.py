@@ -204,7 +204,7 @@ def insert_or_update_opportunity(
                 action_required = %s,
                 deadline = COALESCE(%s, deadline),
                 event_date = COALESCE(%s, event_date),
-                last_updated_at = NOW()
+                last_updated_at = %s
             WHERE id = %s;
             """,
             (

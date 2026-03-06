@@ -1,7 +1,7 @@
 import json
 import re
-from LLM_Gemini import call_llm, LLMQuotaExhausted
-from prompts import FINAL_ANALYSIS_PROMPT
+from email_analyser.lLLM_Gemini import call_llm, LLMQuotaExhausted
+from email_analyser.prompts import FINAL_ANALYSIS_PROMPT
 
 
 def extract_json(text: str) -> dict:

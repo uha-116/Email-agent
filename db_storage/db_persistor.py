@@ -1,8 +1,8 @@
 # db_Persistor.py
 
 from datetime import datetime
-from db_connection import get_db_connection
-from db_repository import (
+from db_storage.db_connection import get_db_connection
+from db_storage.db_repository import (
     insert_email,
     insert_or_update_opportunity,
     insert_opportunity_details,
@@ -90,7 +90,8 @@ def persist_email_payload(
                     pipeline_stage=opp.get("pipeline_stage"),
                     action_required=opp.get("action_required", False),
                     deadline=opp.get("deadline"),
-                    event_date=opp.get("event_date")
+                    event_date=opp.get("event_date"),
+                    received_at=received_at
                 )
 
                 if opportunity_id:
