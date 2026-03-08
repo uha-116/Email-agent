@@ -43,25 +43,30 @@ STRONG_JOB_KEYWORDS = [
     "ctc",
     "messaged",
     "accepted" ,
-    "connect"
-
+    "connect",
+    "messages",
+    "opportunity","intern", "confirmation", "submit","stipend","opportunities", "technical assessment","moving forward","proceeding"
 ]
 
 MEDIUM_JOB_KEYWORDS = [
-    "next step",
-    "further process",
     "schedule",
     "complete",
-    "confirm",
-    "submit",
-    "job",
-     "role",
-     "position",
-     "thank you",
-     "update",
-     "unfortunately",
      "interest",
-     "congratulations"
+     "congratulations",
+     "awaits","eligible", "await",
+    "duration", 
+]
+
+NEGATION=[
+    "reddit",
+    "hireready",
+    "session",
+    "challenge",
+    "webinar",
+    "newsletter",
+    "event","survey" ,"r/Btechtards", "comments","upvotes", "prizes","competition", "certificates" ,"news","courses","post","suhas","register"
+    ,"like"
+
 ]
 
 
@@ -84,12 +89,14 @@ def get_header(headers, name):
 # =========================================================
 
 JUNK_CHARS_REGEX = re.compile(r"[\ufeff\u2007\u200b\u200c\u200d\xa0͏]")
+URL_REGEX = re.compile(r"https?://\S+|www\.\S+")
 
 def normalize_text(text: str) -> str:
     if not text:
         return ""
 
     text = html.unescape(text)
+    text = URL_REGEX.sub("", text)
     text = JUNK_CHARS_REGEX.sub(" ", text)
     text = re.sub(r"\r\n", "\n", text)
     text = re.sub(r"\n{2,}", "\n", text)
@@ -288,9 +295,9 @@ def compute_job_confidence(text: str) -> float:
     score = 0.0
 
     # weights
-    STRONG_WEIGHT = 0.35
-    MEDIUM_WEIGHT = 0.15
-    WEAK_WEIGHT = 0.05
+    STRONG_WEIGHT = 0.25
+    MEDIUM_WEIGHT = 0.10
+    NEG_WEIGHT=0.10
 
     for kw in STRONG_JOB_KEYWORDS:
         if kw in text:
@@ -299,6 +306,10 @@ def compute_job_confidence(text: str) -> float:
     for kw in MEDIUM_JOB_KEYWORDS:
         if kw in text:
             score += MEDIUM_WEIGHT
+
+    for kw in NEGATION:
+        if kw in text:
+            score -= NEG_WEIGHT
 
 
     # cap score at 1.0

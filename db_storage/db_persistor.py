@@ -48,6 +48,7 @@ def persist_email_payload(
     cur = conn.cursor()
 
     try:
+        email_type = payload.get("email_type")
         # --------------------------------------------------
         # 2️⃣ IGNORE → STOP AFTER EMAIL INSERT
         # --------------------------------------------------
@@ -69,7 +70,6 @@ def persist_email_payload(
         )
 
         result["email_id"] = email_id
-        email_type = payload.get("email_type")
 
         # --------------------------------------------------
         # 3️⃣ JOB PIPELINE

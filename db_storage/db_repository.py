@@ -304,6 +304,7 @@ def insert_linkedin_event(
                 event_id
             )
         )
+        print("Updating linkedin event")
 
         return event_id
 

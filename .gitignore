@@ -8,9 +8,10 @@ __pycache__/
 
 # Environment variables / secrets
 .env
-credentials.json
-token.json
+data/
+config/
 
 # OS junk
 Thumbs.db
 .DS_Store
+
