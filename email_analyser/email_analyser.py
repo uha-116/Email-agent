@@ -1,6 +1,6 @@
 import json
 import re
-from email_analyser.lLLM_Gemini import call_llm, LLMQuotaExhausted
+from email_analyser.llm_gemini import call_llm, LLMQuotaExhausted
 from email_analyser.prompts import FINAL_ANALYSIS_PROMPT
 from dotenv import load_dotenv
 import os

@@ -1,4 +1,4 @@
-# db_Repository.py
+# db_repository.py
 
 import json
 from datetime import date, datetime
@@ -147,7 +147,7 @@ def insert_or_update_opportunity(
     deadline: date | None,
     event_date: datetime | None,
     received_at: datetime,
-) -> int | None:
+) -> tuple[int | None, str | None]:
 
     decision, record_id = decide_insert_or_update(
         cur,
@@ -193,7 +193,9 @@ def insert_or_update_opportunity(
                 received_at
             )
         )
-        return cur.fetchone()[0]
+
+        new_id = cur.fetchone()[0]
+        return new_id, "INSERT"
 
     if decision == "UPDATE":
         cur.execute(
@@ -216,10 +218,11 @@ def insert_or_update_opportunity(
                 record_id
             )
         )
-        print("Updating the record", record_id)
-        return record_id
 
-    return None
+        print("Updating the record", record_id)
+        return record_id, "UPDATE"
+
+    return None, None
 
 
 # =========================================================
@@ -269,7 +272,6 @@ def insert_linkedin_event(
     requires_follow_up: bool
 ) -> int:
 
-    # 🔎 Check if recruiter already exists
     cur.execute(
         """
         SELECT id
@@ -282,7 +284,6 @@ def insert_linkedin_event(
 
     row = cur.fetchone()
 
-    # 🔁 UPDATE existing event
     if row:
         event_id = row[0]
 
@@ -308,7 +309,6 @@ def insert_linkedin_event(
 
         return event_id
 
-    # ➕ INSERT new event
     cur.execute(
         """
         INSERT INTO linkedin_events (

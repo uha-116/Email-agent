@@ -1,4 +1,4 @@
-# db_Persistor.py
+# db_persistor.py
 
 from datetime import datetime
 from db_storage.db_connection import get_db_connection
@@ -40,7 +40,10 @@ def persist_email_payload(
 
     result = {
         "email_id": None,
-        "opportunity_ids": [],
+        "opportunity_changes": {
+            "INSERT": [],
+            "UPDATE": []
+        },
         "linkedin_event_id": None
     }
 
@@ -49,12 +52,12 @@ def persist_email_payload(
 
     try:
         email_type = payload.get("email_type")
+
         # --------------------------------------------------
         # 2️⃣ IGNORE → STOP AFTER EMAIL INSERT
         # --------------------------------------------------
         if email_type == "IGNORE":
             return result
-
 
         # --------------------------------------------------
         # 1️⃣ ALWAYS INSERT EMAIL (INCLUDING IGNORE)
@@ -77,7 +80,7 @@ def persist_email_payload(
         if email_type == "JOB_PIPELINE":
             for opp in payload.get("opportunities", []):
 
-                opportunity_id = insert_or_update_opportunity(
+                opp_id, action = insert_or_update_opportunity(
                     cur=cur,
                     email_id=email_id,
                     company=opp.get("company"),
@@ -94,12 +97,12 @@ def persist_email_payload(
                     received_at=received_at
                 )
 
-                if opportunity_id:
-                    result["opportunity_ids"].append(opportunity_id)
+                if opp_id:
+                    result["opportunity_changes"][action].append(opp_id)
 
                     insert_opportunity_details(
                         cur=cur,
-                        opportunity_id=opportunity_id,
+                        opportunity_id=opp_id,
                         other_important_details=opp.get(
                             "other_important_details", {}
                         )

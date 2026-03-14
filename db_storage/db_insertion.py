@@ -15,8 +15,8 @@ from db_storage.db_connection import get_db_connection
 # before date must be NEXT DAY to be inclusive
 # =========================================================
 
-START_DATE = "2026/02/02"
-END_DATE   = "2026/02/05"   # includes entire February
+START_DATE = "2026/03/07"
+END_DATE   = "2026/03/11"   # includes entire February
 MAX_EMAILS = 500
 
 
@@ -145,7 +145,7 @@ def main():
             # --------------------------------------------------
             # 6️⃣ INSERT / UPDATE DATABASE
             # --------------------------------------------------
-            persist_email_payload(
+            result=persist_email_payload(
                 payload=payload,
                 gmail_message_id=email_data["gmail_message_id"],
                 received_at=email_data["received_at"],
@@ -153,6 +153,9 @@ def main():
             )
 
             print("✅ Stored successfully")
+            print("DB Changes:", result)
+
+            
 
         except Exception as e:
             print(f"❌ Failed for {message_id} → {e}")
