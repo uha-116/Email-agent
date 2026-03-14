@@ -59,6 +59,12 @@ LEFT JOIN emails e ON le.email_id = e.id
         base = "FROM opportunities o"
         sort_column = "o.last_updated_at"
         base_alias = "o"
+        # -------------------------------------------------
+        # DEADLINE SUPERLATIVE LOGIC
+        # -------------------------------------------------
+
+        if capability == "DEADLINE_STATUS" and filters.get("superlative"):
+            sort_column = "COALESCE(o.deadline, o.event_date)"
 
     where_clause = build_where(filters, capability)
 
@@ -203,13 +209,17 @@ SELECT COUNT(*) AS total
     """.strip()
 
         else:
+            limit_clause = ""
+
+            if filters.get("superlative") == "LATEST":
+                limit_clause = "\nLIMIT 1"
 
             list_sql = f"""
-    SELECT {select_sql}
-    {base}
-    {where_clause}
-    ORDER BY {sort_column} DESC;
-    """.strip()
+        SELECT {select_sql}
+        {base}
+        {where_clause}
+        ORDER BY {sort_column} DESC{limit_clause};
+        """.strip()
 
     return {
         "count_sql": count_sql,

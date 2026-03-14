@@ -14,18 +14,15 @@ TIME_MAPPINGS = {
     "RECENT": [
         "recent",
         "recently",
-        "latest",
         "new",
         "last week",
         "past few days",
         "in the last few days",
-        "right now",
         "past",
         "earlier",
         "previously"
         "previous",
-        "lastly",
-        "last"
+        "lastly"
     ],
     "FUTURE": [
         "upcoming",
@@ -33,9 +30,9 @@ TIME_MAPPINGS = {
         "coming up",
         "next week",
         "coming",
-        "next"
+        "next","immediate"
     ],
-    "MISSED": ["miss", "missed", "forget", "forgot", "forgotten"]
+    "MISSED": ["miss", "missed", "forget", "forgot", "forgotten"],
 }
 
 # =========================================================
@@ -44,7 +41,9 @@ TIME_MAPPINGS = {
 
 SUPERLATIVE_MAPPINGS = {
     "MOST": ["most", "highest", "top", "maximum", "max","common","most common"],
-    "LEAST": ["least", "lowest", "minimum", "min"]
+    "LEAST": ["least", "lowest", "minimum", "min"],
+    "LATEST":["previous","last","lastly","previously"]
+    
 }
 
 # ---------------------------------------------------------
@@ -116,11 +115,13 @@ def detect_filters(text: str, entity_cache) -> dict:
     # 2️⃣ ROLE
     # -----------------------------------------------------
     role = entity_cache.match_role(text)
+
     if role:
-        if role in ["internship", "internships"]:
-            filters["role"] = "intern"
-        else:
-            filters["role"] = role
+        filters["role"] = role
+
+    # Internship intent (no exact role needed)
+    elif "intern" in text or "internship" in text:
+        filters["role"] = "intern"
 
     # -----------------------------------------------------
     # 3️⃣ LOCATION

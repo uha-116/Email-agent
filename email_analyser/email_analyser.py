@@ -2,8 +2,11 @@ import json
 import re
 from email_analyser.lLLM_Gemini import call_llm, LLMQuotaExhausted
 from email_analyser.prompts import FINAL_ANALYSIS_PROMPT
+from dotenv import load_dotenv
+import os
 
-
+load_dotenv()
+EMAIL_EXTRACTION_MODEL=os.getenv("MODEL_EMAIL_EXTRACTION")
 def extract_json(text: str) -> dict:
     if not text:
         raise ValueError("Empty LLM response")
@@ -28,7 +31,7 @@ def analyze_email(clean_email_text: str) -> dict:
     prompt = FINAL_ANALYSIS_PROMPT + "\n\nEMAIL CONTENT:\n" + clean_email_text
 
     try:
-        raw_response = call_llm(prompt)
+        raw_response = call_llm(prompt,EMAIL_EXTRACTION_MODEL,0)
 
     except LLMQuotaExhausted as e:
         return {

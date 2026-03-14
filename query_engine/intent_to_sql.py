@@ -2,12 +2,12 @@ import json
 
 from query_engine.sbert_model import SBERTMatcher
 from query_engine.filter_extraction import detect_filters
-from query_engine.entity_Cache import EntityCache
+from query_engine.entity_cache import EntityCache
 from query_engine.sql_builder import build_sql
 
 
 SIMILARITY_THRESHOLD = 0.6
-DATA_FILE = "data.json"
+DATA_FILE = "data/data.json"
 
 
 # -------------------------------------------------------
@@ -26,6 +26,23 @@ def load_dataset():
         mapping[q] = item
 
     return mapping
+
+
+# -------------------------------------------------------
+# Detect placeholder values
+# -------------------------------------------------------
+
+def is_placeholder(value):
+
+    if isinstance(value, str):
+        return value.startswith("{") and value.endswith("}")
+
+    if isinstance(value, list):
+        for v in value:
+            if isinstance(v, str) and v.startswith("{") and v.endswith("}"):
+                return True
+
+    return False
 
 
 # -------------------------------------------------------
@@ -73,8 +90,24 @@ def resolve_user_question(user_question):
 
         base_filters = query_json.get("filters", {})
 
+        # ---------------------------------------------------
+        # Remove placeholder filters from dataset filters
+        # ---------------------------------------------------
+
+        clean_base_filters = {}
+
+        for key, value in base_filters.items():
+
+            if is_placeholder(value):
+                continue
+
+            clean_base_filters[key] = value
+
+        # ---------------------------------------------------
         # Merge filters
-        merged_filters = {**base_filters, **dynamic_filters}
+        # ---------------------------------------------------
+
+        merged_filters = {**clean_base_filters, **dynamic_filters}
 
         query_json = query_json.copy()
         query_json["filters"] = merged_filters
@@ -86,7 +119,6 @@ def resolve_user_question(user_question):
             "matched_question": matched_question,
             "similarity": score,
             "query_json": query_json,
-            "filters":dynamic_filters,
             "count_sql": sql["count_sql"],
             "list_sql": sql["list_sql"],
         }
@@ -105,5 +137,3 @@ def resolve_user_question(user_question):
             "user_question": user_question,
             "route": "LLM_SQL_GENERATION"
         }
-
-

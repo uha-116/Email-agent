@@ -1,7 +1,7 @@
 # entity_cache.py
 
 import re
-from rapidfuzz import fuzz, process
+from rapidfuzz import fuzz
 from db_storage.db_connection import get_db_connection
 
 
@@ -10,6 +10,22 @@ class EntityCache:
         self.companies = set()
         self.roles = set()
         self.locations = set()
+
+    # -------------------------------------------------
+    # TEXT NORMALIZATION
+    # -------------------------------------------------
+    def _normalize_text(self, text: str) -> str:
+        text = text.lower()
+
+        replacements = {
+            "internship": "intern",
+            "internships": "intern",
+        }
+
+        for k, v in replacements.items():
+            text = text.replace(k, v)
+
+        return text
 
     # -------------------------------------------------
     # Load distinct values from DB
@@ -33,7 +49,7 @@ class EntityCache:
             "SELECT DISTINCT role FROM opportunities WHERE role IS NOT NULL;"
         )
         self.roles = {
-            row[0].strip().lower()
+            self._normalize_text(row[0].strip())
             for row in cur.fetchall()
             if row[0] and len(row[0].strip()) > 2
         }
@@ -86,7 +102,7 @@ class EntityCache:
     # GENERIC SAFE MATCH
     # -------------------------------------------------
     def _match_entity(self, text, entity_set, fuzzy_threshold=92):
-        text = text.lower()
+        text = self._normalize_text(text)
 
         # 1️⃣ Strict exact phrase match first
         exact = self._exact_phrase_match(text, entity_set)

@@ -108,9 +108,6 @@ def build_where(
             elif tr == "FUTURE":
                 conditions.append(f"{time_column} > CURRENT_DATE")
 
-            elif tr == "PAST":
-                conditions.append(f"{time_column} < CURRENT_DATE")
-
             elif tr in ("THIS_WEEK", "RECENT"):
                 conditions.append(
                     f"{time_column} >= CURRENT_DATE - INTERVAL '7 days'"
