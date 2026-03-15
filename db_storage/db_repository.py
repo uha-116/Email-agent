@@ -38,53 +38,26 @@ def decide_insert_or_update(
     Returns:
         ("INSERT", None)
         ("UPDATE", opportunity_id)
-        ("IGNORE", None)
-        ("AMBIGUOUS", None)
     """
 
-    if role:
-        cur.execute(
-            """
-            SELECT id, pipeline_stage
-            FROM opportunities
-            WHERE company ILIKE %s AND role ILIKE %s;
-            """,
-            (company, role)
-        )
-    else:
-        cur.execute(
-            """
-            SELECT id, pipeline_stage
-            FROM opportunities
-            WHERE company ILIKE %s;
-            """,
-            (company,)
-        )
+    # Look for existing record for same company + stage
+    cur.execute(
+        """
+        SELECT id
+        FROM opportunities
+        WHERE LOWER(company) = LOWER(%s)
+        AND pipeline_stage = %s;
+        """,
+        (company, new_stage)
+    )
 
-    rows = cur.fetchall()
+    row = cur.fetchone()
 
-    if not rows:
+    if not row:
         return "INSERT", None
 
-    if not role and len(rows) > 1:
-        return "AMBIGUOUS", None
-
-    new_priority = get_stage_priority(new_stage)
-
-    best_match = None
-    best_priority = -1
-
-    for opp_id, current_stage in rows:
-        curr_priority = get_stage_priority(current_stage)
-
-        if curr_priority <= new_priority and curr_priority > best_priority:
-            best_match = opp_id
-            best_priority = curr_priority
-
-    if best_match is None:
-        return "IGNORE", None
-
-    return "UPDATE", best_match
+    # Existing record found → update it
+    return "UPDATE", row[0]
 
 
 # =========================================================
@@ -147,7 +120,7 @@ def insert_or_update_opportunity(
     deadline: date | None,
     event_date: datetime | None,
     received_at: datetime,
-) -> tuple[int | None, str | None]:
+) -> tuple[int, str] | None:
 
     decision, record_id = decide_insert_or_update(
         cur,
@@ -193,23 +166,50 @@ def insert_or_update_opportunity(
                 received_at
             )
         )
-
-        new_id = cur.fetchone()[0]
-        return new_id, "INSERT"
+        opp_id = cur.fetchone()[0]     # ✅ FIX 2
+        return opp_id, "INSERT"        # ✅ FIX 3
 
     if decision == "UPDATE":
+
         cur.execute(
             """
             UPDATE opportunities
             SET
+                role =
+                    CASE
+                        WHEN LENGTH(COALESCE(%s,'')) > LENGTH(COALESCE(role,''))
+                        THEN %s
+                        ELSE role
+                    END,
+
+                location = COALESCE(location, %s),
+
+                salary_amount = COALESCE(salary_amount, %s),
+                salary_period = COALESCE(salary_period, %s),
+
+                min_experience_years = COALESCE(min_experience_years, %s),
+                max_experience_years = COALESCE(max_experience_years, %s),
+
                 pipeline_stage = %s,
-                action_required = %s,
+
+                action_required = opportunities.action_required OR %s,
+
                 deadline = COALESCE(%s, deadline),
+
                 event_date = COALESCE(%s, event_date),
-                last_updated_at = %s
+
+                last_updated_at = GREATEST(last_updated_at, %s)
+
             WHERE id = %s;
             """,
             (
+                role,
+                role,
+                location,
+                salary_amount,
+                salary_period,
+                min_experience_years,
+                max_experience_years,
                 pipeline_stage,
                 action_required,
                 deadline,
@@ -220,9 +220,9 @@ def insert_or_update_opportunity(
         )
 
         print("Updating the record", record_id)
-        return record_id, "UPDATE"
+        return record_id,"UPDATE"
 
-    return None, None
+    return None
 
 
 # =========================================================
@@ -272,6 +272,7 @@ def insert_linkedin_event(
     requires_follow_up: bool
 ) -> int:
 
+    # 🔎 Check if recruiter already exists
     cur.execute(
         """
         SELECT id
@@ -284,6 +285,7 @@ def insert_linkedin_event(
 
     row = cur.fetchone()
 
+    # 🔁 UPDATE existing event
     if row:
         event_id = row[0]
 
@@ -309,6 +311,7 @@ def insert_linkedin_event(
 
         return event_id
 
+    # ➕ INSERT new event
     cur.execute(
         """
         INSERT INTO linkedin_events (

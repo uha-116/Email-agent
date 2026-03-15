@@ -8,6 +8,7 @@ from email_analyser.email_analyser import analyze_email
 
 from db_storage.db_persistor import persist_email_payload, email_already_processed
 from db_storage.db_connection import get_db_connection
+#from agent_services.notification_engine import notification_handle
 
 
 # =========================================================
@@ -15,8 +16,8 @@ from db_storage.db_connection import get_db_connection
 # before date must be NEXT DAY to be inclusive
 # =========================================================
 
-START_DATE = "2026/03/07"
-END_DATE   = "2026/03/11"   # includes entire February
+START_DATE = "2026/03/09"
+END_DATE   = "2026/03/16"   # includes entire February
 MAX_EMAILS = 500
 
 
@@ -154,6 +155,11 @@ def main():
 
             print("✅ Stored successfully")
             print("DB Changes:", result)
+
+            # --------------------------------------------------
+            # 📢 TELEGRAM NOTIFICATIONS
+            # --------------------------------------------------
+            # notification_handle(result)
 
             
 
