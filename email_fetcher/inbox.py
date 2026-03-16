@@ -54,7 +54,8 @@ MEDIUM_JOB_KEYWORDS = [
      "interest",
      "congratulations",
      "awaits","eligible", "await",
-    "duration", 
+    "duration", "internships"
+    
 ]
 
 NEGATION=[

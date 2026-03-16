@@ -25,7 +25,7 @@ class LLMQuotaExhausted(Exception):
 # --------------------------------------------------
 # Generic LLM Caller
 # --------------------------------------------------
-def call_llm(prompt: str, model: str, temperature: float = 0) -> str:
+def call_llm(prompt: str, model: str, temp: float = 0) -> str:
     """
     Generic Gemini LLM caller.
 
@@ -43,8 +43,10 @@ def call_llm(prompt: str, model: str, temperature: float = 0) -> str:
             model=model,
             contents=prompt,
             config={
-                "temperature": temperature
-            }
+            "temperature": temp,
+            "max_output_tokens": 5000,
+            "response_mime_type": "application/json"
+        }
         )
 
         if response and response.text:

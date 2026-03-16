@@ -4,58 +4,109 @@ from datetime import datetime
 from email_fetcher.connection import get_gmail_service
 from email_fetcher.inbox import get_clean_email_text, compute_job_confidence
 
-from email_analyser.email_analyser import analyze_email
+from email_analyser.email_analyser import analyze_email_batch
 
 from db_storage.db_persistor import persist_email_payload, email_already_processed
 from db_storage.db_connection import get_db_connection
-#from agent_services.notification_engine import notification_handle
+# from agent_services.notification_engine import notification_handle
+from datetime import timedelta
 
 
-# =========================================================
-# 📅 DATE RANGE (INCREMENTAL RUN)
-# before date must be NEXT DAY to be inclusive
-# =========================================================
+def compute_start_date():
 
-START_DATE = "2026/03/09"
-END_DATE   = "2026/03/16"   # includes entire February
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+
+        cur.execute("""
+            SELECT MAX(last_updated_at)
+            FROM opportunities;
+        """)
+
+        result = cur.fetchone()[0]
+
+        if not result:
+            # First run fallback
+            return "2026/01/01"
+
+        start_dt = result - timedelta(days=1)
+
+        return start_dt.strftime("%Y/%m/%d")
+
+    finally:
+        cur.close()
+        conn.close()
+
 MAX_EMAILS = 500
 
 
 # =========================================================
-# 🔍 LLM-WORTHY FILTER (PRIMARY / IMPORTANT ONLY)
+# FILTER
 # =========================================================
 
-def is_llm_worthy(label_ids: list[str]) -> bool:
+def is_llm_worthy(label_ids: list[str]):
+
     if "INBOX" not in label_ids:
         return False
+
     if "CATEGORY_UPDATES" not in label_ids:
         return False
+
     if "IMPORTANT" not in label_ids:
         return False
+
     if "CATEGORY_PROMOTIONS" in label_ids:
         return False
+
     if "CATEGORY_SOCIAL" in label_ids:
         return False
+
     return True
 
 
 # =========================================================
-# 🚀 AUTOMATED PIPELINE (GEMINI ENABLED)
+# BUILD BATCH FOR GEMINI
+# =========================================================
+
+def build_batch(batch):
+
+    gemini_input = []
+
+    for idx, item in enumerate(batch):
+
+        gemini_input.append({
+            "index": idx,
+            "text": item["email_data"]["raw_text"]
+        })
+
+    return gemini_input
+
+
+# =========================================================
+# MAIN PIPELINE
 # =========================================================
 
 def main():
+
     service = get_gmail_service()
+
     print("✅ Gmail service created\n")
 
-    query = f"in:inbox after:{START_DATE} before:{END_DATE}"
+    batch = []
+    BATCH_SIZE = 2
 
-    # --------------------------------------------------
-    # 📩 PAGINATED GMAIL FETCH (CRITICAL)
-    # --------------------------------------------------
+    START_DATE = compute_start_date()
+
+    print(f"Auto START_DATE: {START_DATE}")
+
+    query = f"in:inbox after:{START_DATE}"
+
     messages = []
     page_token = None
 
     while True:
+
         resp = service.users().messages().list(
             userId="me",
             q=query,
@@ -64,25 +115,22 @@ def main():
         ).execute()
 
         messages.extend(resp.get("messages", []))
+
         page_token = resp.get("nextPageToken")
 
         if not page_token:
             break
 
     messages = list(reversed(messages))
+
     print(f"📩 Total fetched: {len(messages)} emails\n")
 
     llm_count = 0
 
-    # --------------------------------------------------
-    # 🔁 PROCESS EMAILS
-    # --------------------------------------------------
     for idx, msg in enumerate(messages, start=1):
+
         message_id = msg["id"]
 
-        # --------------------------------------------------
-        # 1️⃣ METADATA FETCH (cheap)
-        # --------------------------------------------------
         metadata = service.users().messages().get(
             userId="me",
             id=message_id,
@@ -90,20 +138,17 @@ def main():
         ).execute()
 
         label_ids = metadata.get("labelIds", [])
- 
 
-        # --------------------------------------------------
-        # 2️⃣ FILTER NON-LLM EMAILS EARLY
-        # --------------------------------------------------
         if not is_llm_worthy(label_ids):
             continue
 
-        
-        # --------------------------------------------------
-        # 3️⃣ CHECK IF ALREADY PROCESSED (NEON-SAFE)
-        # --------------------------------------------------
+        # -----------------------------------------
+        # already processed check
+        # -----------------------------------------
+
         conn = get_db_connection()
         cur = conn.cursor()
+
         try:
             if email_already_processed(cur, message_id):
                 continue
@@ -112,58 +157,103 @@ def main():
             conn.close()
 
         try:
-            # --------------------------------------------------
-            # 4️⃣ FULL EMAIL EXTRACTION
-            # --------------------------------------------------
+
             email_data = get_clean_email_text(message_id)
+
             snippet = metadata.get("snippet", "")
+
             job_conf = compute_job_confidence(email_data["raw_text"])
+
             print(f"⭐ Confidence={job_conf}% | snippet={snippet}")
 
-            if job_conf <= 0.5:
+            if job_conf < 0.5:
                 print("Skipping the mail due to low confidence")
                 continue
-            
+
             llm_count += 1
+
             print(f"\n🧠 Processing LLM email #{llm_count} | {message_id}")
-            # --------------------------------------------------
-            # 5️⃣ LLM ANALYSIS (STRICT PROMPT)
-            # --------------------------------------------------
-            payload = analyze_email(email_data["raw_text"])
-            print(payload)
 
-            time.sleep(2)  # throttle Gemini safely
+            # -----------------------------------------
+            # ADD TO BATCH
+            # -----------------------------------------
 
-            # 🛑 LLM quota exhausted → STOP CLEANLY
-            if payload.get("email_type") == "LLM_QUOTA_EXHAUSTED":
-                print("\n🛑 Gemini quota exhausted. Stopping run safely.")
-                break
+            batch.append({
+                "message_id": message_id,
+                "email_data": email_data
+            })
 
-            # ⚠️ Skip bad LLM output
-            if payload.get("email_type") in ("ERROR", "IGNORE"):
+            if len(batch) < BATCH_SIZE:
                 continue
 
-            # --------------------------------------------------
-            # 6️⃣ INSERT / UPDATE DATABASE
-            # --------------------------------------------------
-            result=persist_email_payload(
-                payload=payload,
-                gmail_message_id=email_data["gmail_message_id"],
-                received_at=email_data["received_at"],
-                raw_body_text=email_data["raw_text"]
-            )
+            print("\n🚀 Batch full — sending to Gemini\n")
 
-            print("✅ Stored successfully")
-            print("DB Changes:", result)
+            gemini_input = build_batch(batch)
 
-            # --------------------------------------------------
-            # 📢 TELEGRAM NOTIFICATIONS
-            # --------------------------------------------------
-            # notification_handle(result)
+            responses = analyze_email_batch(gemini_input)
 
-            
+            print(type(responses))
+            print(responses)
+
+            time.sleep(2)
+
+            # -----------------------------------------
+            # PROCESS GEMINI OUTPUT
+            # -----------------------------------------
+
+            for r in responses:
+
+                index = r["index"]
+
+                payload = r["payload"]
+
+                email_item = batch[index]
+
+                email_data = email_item["email_data"]
+
+                message_id = email_item["message_id"]
+
+                print("Processing Date",email_data["received_at"])
+
+                if payload.get("email_type") == "LLM_QUOTA_EXHAUSTED":
+
+                    print("\n🛑 Gemini quota exhausted. Stopping run safely.")
+
+                    return
+
+                if payload.get("email_type") in ("ERROR", "IGNORE"):
+                    continue
+
+                # ✅ FIX — per record failure isolation
+                try:
+
+                    result = persist_email_payload(
+                        payload=payload,
+                        gmail_message_id=message_id,
+                        received_at=email_data["received_at"],
+                        raw_body_text=email_data["raw_text"]
+                    )
+
+                    print("✅ Stored successfully")
+                    print("DB Changes:", result)
+
+                    # notification_handle(result)
+
+                except Exception as e:
+
+                    print(f"⚠️ Skipping record index={index} | message_id={message_id}")
+                    print(f"Reason → {e}")
+
+                    continue
+
+            # -----------------------------------------
+            # CLEAR BATCH
+            # -----------------------------------------
+
+            batch.clear()
 
         except Exception as e:
+
             print(f"❌ Failed for {message_id} → {e}")
 
     print(f"\n🎯 TOTAL LLM-WORTHY EMAILS PROCESSED: {llm_count}")
