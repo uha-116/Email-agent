@@ -8,7 +8,20 @@ from email_analyser.email_analyser import analyze_email_batch
 from db_storage.db_persistor import persist_email_payload, email_already_processed
 from db_storage.db_connection import get_db_connection
 
-from error_handling import BaseAppError, DBConnectionError
+from error_handling import (
+    BaseAppError,
+    DBConnectionError,
+    MessageNotFoundError,
+    Base64DecodeError,
+    GmailFetchError,
+    LLMValidationError,
+    LLMOutputFormatError,
+    NetworkError,
+    RateLimitError,
+    ServiceUnavailableError,
+    AuthenticationError,
+    NetworkDownError
+)
 
 
 # =========================================================
@@ -16,7 +29,6 @@ from error_handling import BaseAppError, DBConnectionError
 # =========================================================
 
 def compute_start_date():
-
     conn = None
     cur = None
 
@@ -74,15 +86,10 @@ def is_llm_worthy(label_ids: list[str]):
 
 def build_batch(batch):
 
-    gemini_input = []
-
-    for idx, item in enumerate(batch):
-        gemini_input.append({
-            "index": idx,
-            "text": item["email_data"]["raw_text"]
-        })
-
-    return gemini_input
+    return [
+        {"index": idx, "text": item["email_data"]["raw_text"]}
+        for idx, item in enumerate(batch)
+    ]
 
 
 # =========================================================
@@ -101,11 +108,11 @@ def main():
         print("[OK] Gmail service created\n")
 
     except BaseAppError as e:
-        print(f"[CRITICAL] {e.user_message}")
+        print(f"🛑 CRITICAL: {e.user_message}")
         return
 
     except Exception as e:
-        print(f"[CRITICAL] Gmail connection failed → {e}")
+        print(f"🛑 Gmail connection failed → {e}")
         return
 
     batch = []
@@ -138,21 +145,22 @@ def main():
                 break
 
     except BaseAppError as e:
-        print(f"[ERROR] {e.user_message}")
+        print(f"🛑 ERROR: {e.user_message}")
         return
 
     except Exception as e:
-        print(f"[ERROR] Failed to fetch email list → {e}")
+        print(f"🛑 Failed to fetch email list → {e}")
         return
 
     messages = list(reversed(messages))
     print(f"📩 Total fetched: {len(messages)} emails\n")
 
-    llm_count = 0
-
     for idx, msg in enumerate(messages, start=1):
 
         message_id = msg["id"]
+
+        print("\n" + "="*80)
+        print(f"📨 Email #{idx} | ID: {message_id}")
 
         # --------------------------------------------------
         # METADATA
@@ -165,51 +173,39 @@ def main():
             ).execute()
 
         except Exception as e:
-            print(f"[WARN] Failed metadata fetch | id={message_id} → {e}")
+            print(f"⚠️ Skipping {message_id} → metadata fetch failed: {e}")
             continue
 
         label_ids = metadata.get("labelIds", [])
         snippet = metadata.get("snippet", "")
 
-        print("\n" + "="*80)
-        print(f"📨 Email #{idx}")
-        print(f"🆔 ID: {message_id}")
         print(f"🏷 Labels: {label_ids}")
         print(f"📝 Snippet: {snippet}")
 
-        # --------------------------------------------------
-        # LABEL FILTER
-        # --------------------------------------------------
-        worthy = is_llm_worthy(label_ids)
-        print(f"🔍 LLM Worthy: {worthy}")
-
-        if not worthy:
-            print("❌ Skipped at LABEL FILTER")
+        if not is_llm_worthy(label_ids):
+            print("❌ Skipped (label filter)")
             continue
 
         # --------------------------------------------------
-        # DB CHECK (FIXED → NEW CONNECTION PER EMAIL)
+        # DB CHECK
         # --------------------------------------------------
         conn = None
         cur = None
-
+        
         try:
             conn = get_db_connection()
             cur = conn.cursor()
 
-            already_done = email_already_processed(cur, message_id)
-            print(f"🗄 Already Processed: {already_done}")
-
-            if already_done:
-                print("❌ Skipped at DB CHECK")
+            if email_already_processed(cur, message_id):
+                print("❌ Already processed")
                 continue
 
-        except DBConnectionError:
-            print("❌ DB unavailable → stopping pipeline")
+        except DBConnectionError as e:
+            print(f"🛑 DB ERROR: {e.user_message}")
             return
 
         except Exception as e:
-            print(f"[WARN] DB check failed | id={message_id} → {e}")
+            print(f"⚠️ Skipping {message_id} → DB check failed: {e}")
             continue
 
         finally:
@@ -219,41 +215,45 @@ def main():
                 conn.close()
 
         # --------------------------------------------------
-        # FETCH FULL EMAIL
+        # FETCH EMAIL CONTENT
         # --------------------------------------------------
         try:
             email_data = get_clean_email_text(service, message_id)
 
+        except (MessageNotFoundError, Base64DecodeError) as e:
+            print(f"⚠️ Skipping {message_id} → {e}")
+            continue
+
+        except GmailFetchError as e:
+            print(f"⚠️ Skipping {message_id} after retries → {e}")
+            continue
+        
+        # 🔴 HARD NETWORK FAILURE → STOP
+        except NetworkDownError as e:
+            print(f"🛑 NETWORK DOWN: {e.user_message}")
+            return
+
         except BaseAppError as e:
-            print(f"[WARN] {e}")
+            print(f"⚠️ Skipping {message_id} → {e}")
             continue
 
         except Exception as e:
-            print(f"[WARN] Failed email fetch | id={message_id} → {e}")
+            print(f"⚠️ Skipping {message_id} → unexpected error: {e}")
             continue
 
-        subject = email_data.get("subject", "")
-        print(f"📌 Subject: {subject}")
-
         # --------------------------------------------------
-        # CONFIDENCE CHECK
+        # CONFIDENCE
         # --------------------------------------------------
         try:
             job_conf = compute_job_confidence(email_data["raw_text"])
 
         except Exception as e:
-            print(f"[WARN] Confidence calc failed | id={message_id} → {e}")
+            print(f"⚠️ Skipping {message_id} → confidence failed: {e}")
             continue
-
-        print(f"⭐ Confidence: {job_conf}")
 
         if job_conf < 0.5:
-            print("❌ Skipped at CONFIDENCE FILTER")
+            print("❌ Skipped (low confidence)")
             continue
-
-        print("✅ PASSED → Adding to batch")
-
-        llm_count += 1
 
         batch.append({
             "message_id": message_id,
@@ -264,37 +264,53 @@ def main():
             continue
 
         # --------------------------------------------------
-        # GEMINI CALL
+        # LLM CALL
         # --------------------------------------------------
-        print("\n🚀 Batch full — sending to Gemini\n")
-
-        gemini_input = build_batch(batch)
+        print("\n🚀 Sending batch to Gemini\n")
 
         try:
-            responses = analyze_email_batch(gemini_input)
+            responses = analyze_email_batch(build_batch(batch))
 
             if not isinstance(responses, list):
-                raise ValueError("Invalid Gemini response format")
+                raise ValueError("Invalid response format")
 
+        except (LLMValidationError, LLMOutputFormatError) as e:
+            print(f"⚠️ LLM output issue → skipping batch: {e}")
+            batch.clear()
+            continue
+        
+        # 🔴 HARD NETWORK FAILURE → STOP
+        except NetworkDownError as e:
+            print(f"🛑 NETWORK DOWN: {e.user_message}")
+            return
+        
+
+        # 🔥 TRANSIENT ERRORS → SKIP (NOT STOP)
+        except (NetworkError, RateLimitError, ServiceUnavailableError) as e:
+            print(f"⚠️ LLM TEMP ERROR → skipping batch: {e}")
+            batch.clear()
+            continue
+
+        # 🔥 FATAL AUTH ERROR → STOP
+        except AuthenticationError as e:
+            print(f"🛑 LLM AUTH ERROR: {e.user_message}")
+            return
+
+        # 🔥 OTHER APP ERRORS → SKIP
         except BaseAppError as e:
-
-            if e.show_to_user:
-                print(f"\n🛑 {e.user_message}")
-                return
-
-            print(f"\n⚠️ LLM error → {e}")
+            print(f"⚠️ Unexpected LLM error → skipping batch: {e}")
             batch.clear()
             continue
 
         except Exception as e:
-            print(f"\n⚠️ Gemini failed → {e}")
+            print(f"⚠️ LLM failure → skipping batch: {e}")
             batch.clear()
             continue
 
         time.sleep(2)
 
         # --------------------------------------------------
-        # STORE RESULTS (FIXED → NEW CONNECTION PER EMAIL)
+        # STORE RESULTS
         # --------------------------------------------------
         for r in responses:
 
@@ -303,42 +319,38 @@ def main():
                 payload = r["payload"]
 
             except Exception:
-                print("[WARN] Invalid response structure — skipping")
+                print("⚠️ Invalid LLM response structure → skipping")
                 continue
 
             email_item = batch[index]
-            email_data = email_item["email_data"]
             message_id = email_item["message_id"]
-
-            print("📅 Processing Date:", email_data["received_at"])
+            email_data = email_item["email_data"]
 
             if payload.get("email_type") in ("ERROR", "IGNORE"):
-                print("⚠️ Skipped at LLM RESPONSE STAGE")
+                print(f"⚠️ Skipping {message_id} (LLM ignored)")
                 continue
 
-            conn = None
-
             try:
-                conn = get_db_connection()
 
-                result = persist_email_payload(
+                persist_email_payload(
                     payload=payload,
                     gmail_message_id=message_id,
                     received_at=email_data["received_at"],
                     raw_body_text=email_data["raw_text"]
                 )
 
-                conn.commit()
+                print(f"✅ Stored {message_id}")
 
-                print("✅ Stored successfully")
-                print("DB Changes:", result)
+            except DBConnectionError as e:
+                print(f"🛑 DB ERROR during insert: {e.user_message}")
+                return
 
-            except DBConnectionError:
-                print("❌ DB unavailable during insert → stopping pipeline")
+            except NetworkDownError as e:
+                print(f"🛑 NETWORK DOWN: {e.user_message}")
                 return
 
             except Exception as e:
-                print(f"[WARN] DB STORE FAILED | id={message_id} → {e}")
+                print(f"⚠️ Skipping {message_id} → DB insert failed: {e}")
                 continue
 
             finally:
@@ -347,7 +359,7 @@ def main():
 
         batch.clear()
 
-    print(f"\n🎯 TOTAL LLM-WORTHY EMAILS PROCESSED: {llm_count}")
+    print("\n🎯 Pipeline completed successfully")
 
 
 if __name__ == "__main__":

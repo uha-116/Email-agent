@@ -18,7 +18,8 @@ from error_handling import (
     NetworkError,
     GmailFetchError,
     MessageNotFoundError,
-    Base64DecodeError
+    Base64DecodeError,
+    NetworkDownError
 )
 
 # =========================================================
@@ -137,13 +138,21 @@ def get_clean_email_text(service, message_id: str) -> dict:
 
         error_str = str(e).lower()
 
+        # 🔥 HARD NETWORK FAILURE (NO INTERNET)
+        if (
+            "getaddrinfo failed" in error_str
+            or "name or service not known" in error_str
+            or "temporary failure in name resolution" in error_str
+        ):
+            raise NetworkDownError(f"Gmail DNS/network failure: {e}")
+
         # ✅ Retryable network issues
         if "timed out" in error_str or "connection" in error_str:
             raise NetworkError(f"Gmail fetch network error: {e}")
 
         # ❌ Other failures
         raise GmailFetchError(f"Failed to fetch message {message_id}: {e}")
-
+        
     # --------------------------------------------------
     # STEP 2: VALIDATE PAYLOAD
     # --------------------------------------------------
@@ -193,3 +202,60 @@ def get_clean_email_text(service, message_id: str) -> dict:
         "received_at": received_at,
         "raw_text": body_text
     }
+
+# =========================================================
+# JOB CONFIDENCE SCORING
+# =========================================================
+
+STRONG_JOB_KEYWORDS = [
+    "application", "applied", "shortlisted", "shortlist",
+    "assessment", "test", "coding", "interview", "offer",
+    "offer letter", "selected", "selection", "onboarding",
+    "joining", "hiring", "recruitment", "candidate portal",
+    "ctc", "messaged", "accepted", "connect", "messages",
+    "opportunity", "intern", "confirmation", "submit",
+    "stipend", "opportunities", "technical assessment",
+    "moving forward", "proceeding"
+]
+
+MEDIUM_JOB_KEYWORDS = [
+    "schedule", "complete", "interest", "congratulations",
+    "awaits", "eligible", "await", "duration"
+]
+
+NEGATION = [
+    "reddit", "hireready", "session", "challenge",
+    "webinar", "newsletter", "event", "survey",
+    "r/btechtards", "comments", "upvotes", "prizes",
+    "competition", "certificates", "news", "courses",
+    "post", "suhas", "register", "like"
+]
+
+
+def compute_job_confidence(text: str) -> float:
+    """
+    Returns confidence score between 0.0 and 1.0
+    """
+    if not text:
+        return 0.0
+
+    text = text.lower()
+    score = 0.0
+
+    STRONG_WEIGHT = 0.25
+    MEDIUM_WEIGHT = 0.10
+    NEG_WEIGHT = 0.10
+
+    for kw in STRONG_JOB_KEYWORDS:
+        if kw in text:
+            score += STRONG_WEIGHT
+
+    for kw in MEDIUM_JOB_KEYWORDS:
+        if kw in text:
+            score += MEDIUM_WEIGHT
+
+    for kw in NEGATION:
+        if kw in text:
+            score -= NEG_WEIGHT
+
+    return min(score, 1.0)

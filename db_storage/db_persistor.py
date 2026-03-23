@@ -9,6 +9,7 @@ from db_storage.db_repository import (
     insert_linkedin_event
 )
 
+from error_handling import BaseAppError, DBConnectionError
 
 
 def email_already_processed(cur, gmail_message_id: str) -> bool:
@@ -55,7 +56,7 @@ def persist_email_payload(
         email_type = payload.get("email_type")
 
         # --------------------------------------------------
-        # 2️⃣ IGNORE → STOP AFTER EMAIL INSERT
+        # 2️⃣ Stop storing ignore emails
         # --------------------------------------------------
         if email_type == "IGNORE":
             return result
@@ -133,7 +134,13 @@ def persist_email_payload(
 
     except Exception as e:
         conn.rollback()
-        raise e
+
+        # 🔥 Preserve structured errors
+        if isinstance(e, BaseAppError):
+            raise e
+
+        # 🔥 Convert unknown DB errors
+        raise DBConnectionError(f"DB operation failed: {e}")
 
     finally:
         cur.close()

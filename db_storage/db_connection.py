@@ -2,7 +2,11 @@ import os
 import psycopg2
 from dotenv import load_dotenv
 
-from error_handling import retry, DBConnectionError
+from error_handling import (
+    retry,
+    DBConnectionError,
+    NetworkDownError   # 🔥 ADDED
+)
 
 # --------------------------------------------------
 # LOAD ENV ONCE
@@ -31,14 +35,23 @@ def get_db_connection():
     try:
         conn = psycopg2.connect(DATABASE_URL)
 
-        # Optional but good practice
         conn.autocommit = False
 
         return conn
 
     except psycopg2.OperationalError as e:
+
+        msg = str(e).lower()
+
+        # 🔥 HARD NETWORK FAILURE (NO INTERNET)
+        if (
+            "could not translate host name" in msg
+            or "name or service not known" in msg
+            or "temporary failure in name resolution" in msg
+        ):
+            raise NetworkDownError(f"Database DNS/network failure: {e}")
+
         raise DBConnectionError(f"Database connection failed: {e}")
 
     except Exception as e:
-        # Unexpected but still DB-level issue
         raise DBConnectionError(f"Unexpected DB connection error: {e}")

@@ -2,6 +2,8 @@
 # BASE ERROR
 # =========================================================
 
+import socket
+
 class BaseAppError(Exception):
     retryable = False
     user_message = "Something went wrong"
@@ -37,6 +39,14 @@ def retry(max_attempts=2):
     return wrapper
 
 
+def is_internet_available():
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=2)
+        return True
+    except:
+        return False
+
+
 # =========================================================
 # CONNECTION ERRORS (GMAIL SETUP)
 # =========================================================
@@ -44,6 +54,12 @@ def retry(max_attempts=2):
 class NetworkError(BaseAppError):
     retryable = True
     user_message = "Temporary network issue. Please try again later."
+    show_to_user = True
+
+
+class NetworkDownError(BaseAppError):
+    retryable = False
+    user_message = "Please Connect to the internet"
     show_to_user = True
 
 

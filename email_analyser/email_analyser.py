@@ -12,7 +12,7 @@ from error_handling import (
     LLMValidationError
 )
 
-from schema_validation import validate_schema
+from email_analyser.schema_validation import validate_schema
 
 # --------------------------------------------------
 # LOAD ENV
@@ -65,7 +65,7 @@ def extract_json(text: str):
 # =========================================================
 
 @retry(max_attempts=2)
-def analyze_email_batch(gemini_input: list) -> dict:
+def analyze_email_batch(gemini_input: list) -> list:
 
     # --------------------------------------------------
     # STEP 1: BUILD PROMPT
@@ -87,8 +87,28 @@ def analyze_email_batch(gemini_input: list) -> dict:
     payload = extract_json(raw_response)
 
     # --------------------------------------------------
-    # STEP 4: SCHEMA VALIDATION (CRITICAL)
+    # STEP 4: SCHEMA VALIDATION (PARTIAL SAFE)
     # --------------------------------------------------
-    validate_schema(payload)
+    try:
+        valid_items, invalid_items = validate_schema(payload)
 
-    return payload
+    except LLMValidationError as e:
+        # This means FULL STRUCTURE is broken (not per-item)
+        raise LLMValidationError(f"Batch validation failed: {e}")
+
+    # --------------------------------------------------
+    # STEP 5: LOG INVALID ITEMS
+    # --------------------------------------------------
+    for bad in invalid_items:
+        item = bad.get("item", {})
+        idx = item.get("index", "unknown")
+
+        print(f"⚠️ Skipping LLM output at index {idx} → {bad['error']}")
+
+    # --------------------------------------------------
+    # STEP 6: RETURN ONLY VALID ITEMS
+    # --------------------------------------------------
+    if not valid_items:
+        raise LLMValidationError("All items failed validation")
+
+    return valid_items

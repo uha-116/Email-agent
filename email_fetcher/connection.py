@@ -8,23 +8,14 @@ from googleapiclient.discovery import build
 import requests
 import socket
 
-# --------------------------------------------------
-# IMPORT CUSTOM EXCEPTIONS + RETRY
-# --------------------------------------------------
-
 from error_handling import (
-    BaseAppError,
     retry,
     NetworkError,
-    TokenRefreshError,
+    NetworkDownError,   # 🔥 NEW
     TokenLoadError,
-    OAuthLoginError,
-    GmailServiceBuildError
+    GmailServiceBuildError,
+    is_internet_available   # 🔥 NEW
 )
-
-# --------------------------------------------------
-# CONFIG
-# --------------------------------------------------
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
@@ -34,12 +25,50 @@ TOKEN_PATH = os.path.join(BASE_DIR, "config", "token.json")
 CREDENTIALS_PATH = os.path.join(BASE_DIR, "config", "credentials.json")
 
 
-# --------------------------------------------------
-# CORE FUNCTION (WITH RETRY)
-# --------------------------------------------------
+# =========================================================
+# INTERNAL LOGIN HELPER (RETRYABLE LOGIN FLOW)
+# =========================================================
+
+def perform_login():
+
+    if not os.path.exists(CREDENTIALS_PATH):
+        raise TokenLoadError("credentials.json not found")
+
+    flow = InstalledAppFlow.from_client_secrets_file(
+        CREDENTIALS_PATH,
+        SCOPES
+    )
+
+    print("\n🔐 Gmail authentication required")
+    print("👉 Opening browser for login...\n")
+
+    try:
+        creds = flow.run_local_server(
+            port=8080,
+            access_type='offline',
+            prompt='consent'
+        )
+        return creds
+
+    except OSError:
+        print("\n⚠️ Browser failed → switching to console login\n")
+        creds = flow.run_console(
+            access_type='offline',
+            prompt='consent'
+        )
+        return creds
+
+
+# =========================================================
+# MAIN FUNCTION
+# =========================================================
 
 @retry(max_attempts=2)
 def get_gmail_service():
+
+    # 🔥 FAIL FAST CHECK
+    if not is_internet_available():
+        raise NetworkDownError()
 
     creds = None
 
@@ -52,79 +81,113 @@ def get_gmail_service():
                 TOKEN_PATH,
                 SCOPES
             )
+
         except Exception as e:
-            raise TokenLoadError(f"Failed to load token.json: {e}")
-
-    # --------------------------------------------------
-    # STEP 2: VALIDITY CHECK
-    # --------------------------------------------------
-    if not creds or not creds.valid:
-
-        # --------------------------------------------------
-        # STEP 3: REFRESH TOKEN
-        # --------------------------------------------------
-        if creds and creds.expired and creds.refresh_token:
+            print(f"⚠️ Corrupted token → removing: {e}")
             try:
-                creds.refresh(Request())
-
-            except (requests.exceptions.RequestException, socket.timeout) as e:
-                raise NetworkError(f"Network error during token refresh: {e}")
-
-            except Exception as e:
-                raise TokenRefreshError(f"Token refresh failed: {e}")
-
-        else:
+                os.remove(TOKEN_PATH)
+            except Exception:
+                pass
             creds = None
 
-        # --------------------------------------------------
-        # STEP 4: LOGIN (ONLY if NO CREDS)
-        # --------------------------------------------------
-        if not creds:
+    # --------------------------------------------------
+    # STEP 2: VALIDATE / REFRESH
+    # --------------------------------------------------
+    if creds and creds.valid:
+        pass
 
-            # 🔴 credentials.json missing → NON-RETRYABLE
-            if not os.path.exists(CREDENTIALS_PATH):
-                raise TokenLoadError("credentials.json not found")
+    elif creds and creds.expired and creds.refresh_token:
+        try:
+            print("🔄 Refreshing token...")
+            creds.refresh(Request())
 
+        except (requests.exceptions.RequestException, socket.timeout) as e:
+
+            msg = str(e).lower()
+
+            # 🔥 HARD NETWORK FAILURE
+            if (
+                "getaddrinfo failed" in msg
+                or "name or service not known" in msg
+            ):
+                raise NetworkDownError()
+
+            raise NetworkError(f"Network error during refresh: {e}")
+
+        except Exception as e:
+            print(f"⚠️ Refresh failed → removing token: {e}")
             try:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    CREDENTIALS_PATH,
-                    SCOPES
-                )
+                os.remove(TOKEN_PATH)
+            except Exception:
+                pass
+            creds = None
 
-            except Exception as e:
-                raise TokenLoadError(f"Invalid credentials.json: {e}")
+    else:
+        creds = None
 
+    # --------------------------------------------------
+    # STEP 3: LOGIN (WITH INTERNAL RETRY)
+    # --------------------------------------------------
+    if not creds:
+
+        for attempt in range(2):
             try:
-                creds = flow.run_local_server(port=8080)
-
-            except OSError as e:
-                raise OAuthLoginError(f"Port issue during OAuth login: {e}")
+                creds = perform_login()
+                break
 
             except (requests.exceptions.RequestException, socket.timeout) as e:
+
+                msg = str(e).lower()
+
+                # 🔥 HARD NETWORK FAILURE
+                if (
+                    "getaddrinfo failed" in msg
+                    or "name or service not known" in msg
+                ):
+                    raise NetworkDownError()
+
                 raise NetworkError(f"Network error during OAuth login: {e}")
 
             except Exception as e:
-                raise OAuthLoginError(f"OAuth login failed: {e}")
+                print(f"⚠️ Login attempt {attempt+1} failed: {e}")
 
-        # --------------------------------------------------
-        # STEP 5: SAVE TOKEN (NON-CRITICAL)
-        # --------------------------------------------------
-        try:
-            with open(TOKEN_PATH, 'w') as token:
-                token.write(creds.to_json())
+                try:
+                    os.remove(TOKEN_PATH)
+                except Exception:
+                    pass
 
-        except Exception:
-            # Non-critical — ignore
-            pass
+                if attempt == 1:
+                    raise TokenLoadError("OAuth login failed after retries")
 
     # --------------------------------------------------
-    # STEP 6: BUILD SERVICE
+    # STEP 4: SAVE TOKEN
+    # --------------------------------------------------
+    try:
+        with open(TOKEN_PATH, 'w') as token:
+            token.write(creds.to_json())
+        print("✅ Token saved")
+
+    except Exception:
+        print("⚠️ Failed to save token (non-critical)")
+
+    # --------------------------------------------------
+    # STEP 5: BUILD SERVICE
     # --------------------------------------------------
     try:
         service = build('gmail', 'v1', credentials=creds)
         return service
 
     except (requests.exceptions.RequestException, socket.timeout) as e:
+
+        msg = str(e).lower()
+
+        # 🔥 HARD NETWORK FAILURE
+        if (
+            "getaddrinfo failed" in msg
+            or "name or service not known" in msg
+        ):
+            raise NetworkDownError()
+
         raise NetworkError(f"Network error while building Gmail service: {e}")
 
     except Exception as e:
