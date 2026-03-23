@@ -24,6 +24,7 @@ ALLOWED_COLUMNS = {
     "subject",
     "sender",
     "received_at",
+    "gmail_message_id"
 }
 
 
@@ -33,6 +34,9 @@ def _col(column: str, alias: str) -> str:
 
     if column == "details":
         return "d.details"
+
+    if column == "gmail_message_id":
+        return "e.gmail_message_id"
 
     return f"{alias}.{column}"
 
@@ -56,7 +60,10 @@ LEFT JOIN emails e ON le.email_id = e.id
         sort_column = "e.received_at"
         base_alias = "le"
     else:
-        base = "FROM opportunities o"
+        base = """
+                FROM opportunities o
+                LEFT JOIN emails e ON o.email_id = e.id
+                """.strip()
         sort_column = "o.last_updated_at"
         base_alias = "o"
         # -------------------------------------------------
@@ -184,7 +191,7 @@ SELECT COUNT(*) AS total
         {base}
         {where_clause}
     ) sub
-    WHERE rn <= 15
+    WHERE rn <= 7
     ORDER BY sub.{group_by}, sub.{sort_col_name} DESC;
     """.strip()
 
@@ -213,6 +220,9 @@ SELECT COUNT(*) AS total
 
             if filters.get("superlative") == "LATEST":
                 limit_clause = "\nLIMIT 1"
+            else:
+                limit_clause = "\nLIMIT 15"
+
 
             list_sql = f"""
         SELECT {select_sql}

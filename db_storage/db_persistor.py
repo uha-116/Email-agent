@@ -10,6 +10,7 @@ from db_storage.db_repository import (
 )
 
 
+
 def email_already_processed(cur, gmail_message_id: str) -> bool:
     """
     Checks if an email with this Gmail message ID

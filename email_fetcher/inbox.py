@@ -11,71 +11,25 @@ from PIL import Image
 from io import BytesIO
 from datetime import datetime
 
+from googleapiclient.errors import HttpError
 
-from email_fetcher.connection import get_gmail_service
-
+from error_handling import (
+    retry,
+    NetworkError,
+    GmailFetchError,
+    MessageNotFoundError,
+    Base64DecodeError
+)
 
 # =========================================================
 # HELPERS
 # =========================================================
-# inbox.py
-
-# inbox.py
-
-STRONG_JOB_KEYWORDS = [
-    "application",
-    "applied",
-    "shortlisted",
-    "shortlist",
-    "assessment",
-    "test",
-    "coding",
-    "interview",
-    "offer",
-    "offer letter",
-    "selected",
-    "selection",
-    "onboarding",
-    "joining",
-    "hiring",
-    "recruitment",
-    "candidate portal",
-    "ctc",
-    "messaged",
-    "accepted" ,
-    "connect",
-    "messages",
-    "opportunity","intern", "confirmation", "submit","stipend","opportunities", "technical assessment","moving forward","proceeding"
-]
-
-MEDIUM_JOB_KEYWORDS = [
-    "schedule",
-    "complete",
-     "interest",
-     "congratulations",
-     "awaits","eligible", "await",
-    "duration", "internships"
-    
-]
-
-NEGATION=[
-    "reddit",
-    "hireready",
-    "session",
-    "challenge",
-    "webinar",
-    "newsletter",
-    "event","survey" ,"r/Btechtards", "comments","upvotes", "prizes","competition", "certificates" ,"news","courses","post","suhas","register"
-    ,"like"
-
-]
-
-
-
-
 
 def decode_base64(data):
-    return base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+    try:
+        return base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+    except Exception as e:
+        raise Base64DecodeError(f"Base64 decode failed: {e}")
 
 
 def get_header(headers, name):
@@ -84,48 +38,8 @@ def get_header(headers, name):
         ""
     )
 
-
 # =========================================================
-# NORMALIZATION
-# =========================================================
-
-JUNK_CHARS_REGEX = re.compile(r"[\ufeff\u2007\u200b\u200c\u200d\xa0͏]")
-URL_REGEX = re.compile(r"https?://\S+|www\.\S+")
-
-def normalize_text(text: str) -> str:
-    if not text:
-        return ""
-
-    text = html.unescape(text)
-    text = URL_REGEX.sub("", text)
-    text = JUNK_CHARS_REGEX.sub(" ", text)
-    text = re.sub(r"\r\n", "\n", text)
-    text = re.sub(r"\n{2,}", "\n", text)
-    text = re.sub(r"[ \t]+", " ", text)
-
-    cleaned_lines = []
-    prev = None
-    for line in text.split("\n"):
-        line = line.strip()
-        if line and line != prev:
-            cleaned_lines.append(line)
-            prev = line
-
-    return "\n".join(cleaned_lines).strip()
-
-
-def normalize_ocr_text(text: str) -> str:
-    if not text:
-        return ""
-
-    text = html.unescape(text)
-    text = JUNK_CHARS_REGEX.sub(" ", text)
-    text = re.sub(r"[ \t]+", " ", text)
-    return text.strip()
-
-
-# =========================================================
-# EXTRACTION
+# TEXT EXTRACTION
 # =========================================================
 
 def extract_plain_text(payload):
@@ -136,7 +50,10 @@ def extract_plain_text(payload):
         if part.get("mimeType") == "text/plain":
             data = part.get("body", {}).get("data")
             if data:
-                text += decode_base64(data)
+                try:
+                    text += decode_base64(data)
+                except Base64DecodeError:
+                    return
 
         for sub in part.get("parts", []):
             walk(sub)
@@ -153,7 +70,10 @@ def extract_visible_html_text(payload):
         if part.get("mimeType") == "text/html":
             data = part.get("body", {}).get("data")
             if data:
-                html_content += decode_base64(data)
+                try:
+                    html_content += decode_base64(data)
+                except Base64DecodeError:
+                    return
 
         for sub in part.get("parts", []):
             walk(sub)
@@ -169,150 +89,107 @@ def extract_visible_html_text(payload):
     return html_content, visible_text
 
 
-def extract_image_urls(html_content):
-    if not html_content:
-        return []
+# =========================================================
+# CORE FUNCTION (WITH RETRY)
+# =========================================================
 
-    soup = BeautifulSoup(html_content, "html.parser")
-    return [img.get("src") for img in soup.find_all("img") if img.get("src")]
+@retry(max_attempts=2)
+def get_clean_email_text(service, message_id: str) -> dict:
 
-
-def ocr_image_from_url(url):
+    # --------------------------------------------------
+    # STEP 1: FETCH EMAIL FROM GMAIL
+    # --------------------------------------------------
     try:
-        response = requests.get(url, timeout=5)
-        img = Image.open(BytesIO(response.content)).convert("L")
+        msg = service.users().messages().get(
+            userId="me",
+            id=message_id,
+            format="full"
+        ).execute()
 
-        # ⏱️ Limit OCR time
-        text = pytesseract.image_to_string(
-            np.array(img),
-            timeout=3
-        )
-        return normalize_ocr_text(text)
+    except HttpError as e:
 
-    except Exception:
-        return ""
+        status = e.resp.status
+        error_msg = str(e).lower()
 
+        # ❌ Permanent error
+        if status == 404:
+            raise MessageNotFoundError(f"Message not found: {message_id}")
 
-def looks_like_html(text: str) -> bool:
-    if not text:
-        return False
-    return bool(re.search(r"<(html|body|div|table|style|head|meta)[\s>]", text, re.I))
+        # ✅ Retryable
+        elif status == 429:
+            raise NetworkError("Rate limit exceeded")
 
+        elif status in (500, 503):
+            raise NetworkError("Gmail server error")
 
-# =========================================================
-# CORE FUNCTION — FINAL OUTPUT
-# =========================================================
+        # ⚠️ Conditional
+        elif status == 403:
+            if "rate limit" in error_msg:
+                raise NetworkError("Rate limit exceeded")
+            else:
+                raise GmailFetchError("Permission or access issue")
 
-def get_clean_email_text(message_id: str) -> dict:
-    service = get_gmail_service()
+        # ❌ Unknown Gmail error
+        else:
+            raise GmailFetchError(f"Gmail API error: {e}")
 
-    msg = service.users().messages().get(
-        userId="me",
-        id=message_id,
-        format="full"
-    ).execute()
+    except Exception as e:
 
+        error_str = str(e).lower()
+
+        # ✅ Retryable network issues
+        if "timed out" in error_str or "connection" in error_str:
+            raise NetworkError(f"Gmail fetch network error: {e}")
+
+        # ❌ Other failures
+        raise GmailFetchError(f"Failed to fetch message {message_id}: {e}")
+
+    # --------------------------------------------------
+    # STEP 2: VALIDATE PAYLOAD
+    # --------------------------------------------------
     payload = msg.get("payload", {})
+    if not payload:
+        raise GmailFetchError("Empty payload received from Gmail")
+
     headers = payload.get("headers", [])
 
     subject = get_header(headers, "Subject")
     date_str = get_header(headers, "Date")
 
-    # -------- RECEIVED DATE --------
+    # --------------------------------------------------
+    # STEP 3: SAFE DATE PARSING
+    # --------------------------------------------------
     received_at = None
     if date_str:
-        received_at = datetime.fromtimestamp(
-            email.utils.mktime_tz(email.utils.parsedate_tz(date_str))
-        )
+        try:
+            received_at = datetime.fromtimestamp(
+                email.utils.mktime_tz(email.utils.parsedate_tz(date_str))
+            )
+        except Exception:
+            received_at = None
 
-    # -------- BODY TEXT --------
+    # --------------------------------------------------
+    # STEP 4: EXTRACT TEXT
+    # --------------------------------------------------
     plain_text = extract_plain_text(payload)
     html_content, visible_text = extract_visible_html_text(payload)
 
     parts = []
 
-    if plain_text and not looks_like_html(plain_text):
+    if plain_text:
         parts.append(plain_text)
 
     if visible_text:
         parts.append(visible_text)
 
-    body_text = normalize_text("\n".join(parts))
+    body_text = "\n".join(parts).strip()
 
-    # -------- OCR TEXT --------
-    image_urls = extract_image_urls(html_content)
-    ocr_texts = []
-
-    for url in image_urls:
-        text = ocr_image_from_url(url)
-        if text:
-            ocr_texts.append(text)
-
-    ocr_texts = list(dict.fromkeys(ocr_texts))  # dedupe
-    combined_ocr_text = "\n".join(ocr_texts).strip()
-
-    # -------- FINAL RAW TEXT --------
-    final_parts = []
-
-    if combined_ocr_text:
-        final_parts.append(
-            "--- IMAGE OCR TEXT ---\n\n" + combined_ocr_text
-        )
-
-    header_block = "\n".join(
-        line for line in [
-            f"Subject: {subject}" if subject else "",
-            f"Date: {date_str}" if date_str else ""
-        ] if line
-    )
-
-    if header_block:
-        final_parts.append(header_block)
-
-    if body_text:
-        final_parts.append("--- EMAIL BODY ---\n\n" + body_text)
-
-    raw_text = "\n\n".join(final_parts).strip()
-
-    # ✅ RETURN AS JSON (as requested)
+    # --------------------------------------------------
+    # STEP 5: FINAL RESPONSE
+    # --------------------------------------------------
     return {
         "gmail_message_id": msg["id"],
         "subject": subject,
         "received_at": received_at,
-        "raw_text": raw_text
+        "raw_text": body_text
     }
-
-# inbox.py
-
-def compute_job_confidence(text: str) -> float:
-    """
-    Returns confidence score between 0.0 and 1.0
-    """
-    if not text:
-        return 0.0
-
-    text = text.lower()
-
-    score = 0.0
-
-    # weights
-    STRONG_WEIGHT = 0.25
-    MEDIUM_WEIGHT = 0.10
-    NEG_WEIGHT=0.10
-
-    for kw in STRONG_JOB_KEYWORDS:
-        if kw in text:
-            score += STRONG_WEIGHT
-
-    for kw in MEDIUM_JOB_KEYWORDS:
-        if kw in text:
-            score += MEDIUM_WEIGHT
-
-    for kw in NEGATION:
-        if kw in text:
-            score -= NEG_WEIGHT
-
-
-    # cap score at 1.0
-    return min(score, 1.0)
-
