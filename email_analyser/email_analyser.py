@@ -91,6 +91,8 @@ def analyze_email_batch(gemini_input: list) -> list:
     # --------------------------------------------------
     try:
         valid_items, invalid_items = validate_schema(payload)
+        print("Valid_items",valid_items)
+        print("Invalid items",invalid_items)
 
     except LLMValidationError as e:
         # This means FULL STRUCTURE is broken (not per-item)

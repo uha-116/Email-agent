@@ -118,7 +118,7 @@ def main():
     batch = []
     BATCH_SIZE = 2
 
-    START_DATE = compute_start_date()
+    START_DATE = "2026/03/19"
     print(f"Auto START_DATE: {START_DATE}")
 
     query = f"in:inbox after:{START_DATE}"
@@ -169,7 +169,8 @@ def main():
             metadata = service.users().messages().get(
                 userId="me",
                 id=message_id,
-                format="metadata"
+                format="metadata",
+                metadataHeaders=["Date"]
             ).execute()
 
         except Exception as e:
@@ -178,6 +179,17 @@ def main():
 
         label_ids = metadata.get("labelIds", [])
         snippet = metadata.get("snippet", "")
+
+        internal_ts = metadata.get("internalDate")
+
+        received_at = None
+        if internal_ts:
+            try:
+                received_at = datetime.fromtimestamp(int(internal_ts) / 1000)
+            except Exception:
+                received_at = None
+
+        print(f"📅 Date: {received_at}")
 
         print(f"🏷 Labels: {label_ids}")
         print(f"📝 Snippet: {snippet}")
@@ -219,6 +231,7 @@ def main():
         # --------------------------------------------------
         try:
             email_data = get_clean_email_text(service, message_id)
+            print(email_data["raw_text"][:100])
 
         except (MessageNotFoundError, Base64DecodeError) as e:
             print(f"⚠️ Skipping {message_id} → {e}")
@@ -248,11 +261,11 @@ def main():
             job_conf = compute_job_confidence(email_data["raw_text"])
 
         except Exception as e:
-            print(f"⚠️ Skipping {message_id} → confidence failed: {e}")
+            print(f"⚠️ Skipping {message_id} → confidence failed: {e} with {job_conf}")
             continue
 
         if job_conf < 0.5:
-            print("❌ Skipped (low confidence)")
+            print(f"❌ Skipped (low confidence) with {job_conf}")
             continue
 
         batch.append({
@@ -285,8 +298,20 @@ def main():
             return
         
 
-        # 🔥 TRANSIENT ERRORS → SKIP (NOT STOP)
-        except (NetworkError, RateLimitError, ServiceUnavailableError) as e:
+        # 🔴 HANDLE RATE LIMIT SEPARATELY
+        except RateLimitError as e:
+
+            if "DAILY_QUOTA_EXHAUSTED" in str(e):
+                print("🛑 STOPPING PIPELINE → DAILY QUOTA HIT")
+                return   # 🔥 STOP ENTIRE PIPELINE
+
+            print(f"⚠️ TEMP RATE LIMIT → skipping batch: {e}")
+            batch.clear()
+            continue
+
+
+        # 🟡 OTHER TRANSIENT ERRORS
+        except (NetworkError, ServiceUnavailableError) as e:
             print(f"⚠️ LLM TEMP ERROR → skipping batch: {e}")
             batch.clear()
             continue

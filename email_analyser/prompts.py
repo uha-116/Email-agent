@@ -323,241 +323,149 @@ Return only JSON.
 
 
 SQL_GENERATION_PROMPT="""
-You are a PostgreSQL SQL generation engine.
-
-Think step-by-step internally before generating the SQL query.
-Do NOT output the reasoning steps.
-Return ONLY the SQL query.
-
-Generate SQL strictly using the schema below. The query must precisely match the user's intent using only the available columns and system capabilities.
+You are a strict PostgreSQL SQL generator.
+Return ONLY SQL.
 
 --------------------------------------------------
-
-DATABASE SCHEMA
-
-emails
-Stores received emails.
-
-id → email id
-sender → sender email
-subject → email subject
-email_type → JOB_PIPELINE / LINKEDIN_NETWORKING / IGNORE
-received_at → email received timestamp
-
-
-opportunities
-Stores job opportunities extracted from emails.
-
-company → company name
-role → job role title
-location → job location
-
-salary_amount → salary value
-salary_period → salary unit (MONTH = stipend, YEAR = annual salary)
-
-min_experience_years → minimum experience required
-max_experience_years → maximum experience allowed
-
-pipeline_stage → stage of job application process
-
-Possible values
-
-OPPORTUNITY_FOUND → jobs / opportunities / openings 
-APPLIED → applied applications
-SHORTLISTED → shortlisted candidates
-ASSESSMENT → test / assignment / exam / form
-INTERVIEW → interview stage /hr round /Managerial round
-SELECTED → selected / offer / hired 
-REJECTED → rejected / rejection
-
-
-action_required → whether the user must complete the next step
-true → user must perform a task
-false → waiting for company response /Evalution time /Pening review
-
-deadline → deadline for completing a task
-event_date → scheduled assessment or interview
-
-last_updated_at → latest activity timestamp
-
-
-opportunity_details
-details → structured metadata describing the opportunity
-
-
-linkedin_events
-person_name → LinkedIn contact name
-person_title → job title of the contact
-person_company → company of the contact
-interaction_type → 
-requires_follow_up → whether the user should reply
-
+INPUT
+--------------------------------------------------
+User Query: {user_query}
 
 --------------------------------------------------
+SCHEMA
+--------------------------------------------------
+emails(
+id BIGINT,
+gmail_message_id TEXT,
+received_at TIMESTAMP,
+email_type TEXT  -- JOB_PIPELINE | LINKEDIN_NETWORKING | IGNORE
+)
 
-QUERY GENERATION PROCESS
+opportunities(
+id BIGINT,
+email_id BIGINT,
+company TEXT,
+role TEXT,
+location TEXT,
+salary_amount NUMERIC,
+salary_period TEXT,       -- year | month | hour
+min_experience_years INT,
+max_experience_years INT,
+pipeline_stage TEXT,      -- OPPORTUNITY_FOUND | APPLIED | SHORTLISTED | ASSESSMENT | INTERVIEW | SELECTED | REJECTED
+action_required BOOLEAN,
+deadline DATE,
+event_date TIMESTAMP,
+last_updated_at TIMESTAMP
+)
 
-Step 1 — Determine Tables
-
-Identify which tables are required.
-
-For job or opportunity questions  
-→ use opportunities
-
-If detailed metadata is needed  
-→ join opportunity_details  
-ON opportunity_details.opportunity_id = opportunities.id
-
-For LinkedIn networking questions  
-→ use linkedin_events and join emails  
-ON linkedin_events.email_id = emails.id
-
+linkedin_events(
+id BIGINT,
+email_id BIGINT,
+person_name TEXT,
+person_title TEXT,
+person_company TEXT,
+interaction_type TEXT,    -- CONNECTION_ACCEPTED | RECRUITER_MESSAGE
+requires_follow_up BOOLEAN
+)
 
 --------------------------------------------------
+TYPE RULES
+--------------------------------------------------
+TEXT → ILIKE  
+NUMERIC → =, >, <, BETWEEN  
+BOOLEAN → TRUE/FALSE  
+DATE/TIMESTAMP → comparisons  
 
-Step 2 — Determine Filters
-
-Using the tables selected in Step 1, examine their columns and translate the user intent into SQL filters.
-
-Match the question against relevant columns such as
-
-pipeline_stage  
-action_required  
-company / person_company  
-role  
-location  
-salary_amount / salary_period  
-deadline / event_date  
-last_updated_at  
-
-Use ILIKE for text filters.
-
-Examples
-
-company ILIKE '%google%'  
-role ILIKE '%intern%'
-
-Use date comparisons for time conditions using
-
-last_updated_at  
-deadline  
-event_date  
-
-Only create filters supported by the schema.
-
-Prefer exact filters over generic queries whenever a column clearly matches the user's intent.
-
+Use ONLY allowed values defined in schema comments.
 
 --------------------------------------------------
-
-Step 3 — Determine Projections (Backward Elimination)
-
-Start by considering all potentially relevant columns from the selected tables.
-
-For opportunities these may include
-
-company
-role
-pipeline_stage
-location
-salary_amount
-salary_period
-deadline
-event_date
-min_experience_years
-max_experience_years
-details
-
-Then reduce the projection set using backward elimination:
-
-1. Remove columns that are fixed by filters with a single constant value.
-
-Example
-
-WHERE company = 'Unstop'
-→ remove company from SELECT
-
-2. Remove columns used only for sorting.
-
-Example
-
-ORDER BY last_updated_at
-→ remove last_updated_at from SELECT
-
-3. Remove columns that do not add information required to answer the user question.
-
-4. If multiple values may appear (for example pipeline_stage or company), keep that column so rows can be distinguished.
-
-5. The final projection must be the smallest set of columns that still answers the user question.
-
-For LinkedIn queries consider columns such as
-
-person_name
-person_title
-person_company
-interaction_type
-requires_follow_up
-
-Apply the same backward elimination process.
-
+TABLE
+--------------------------------------------------
+jobs → opportunities  
+networking → linkedin_events JOIN emails  
 
 --------------------------------------------------
-
-Step 4 — Sorting
-
-For job opportunities
-
-ORDER BY last_updated_at DESC
-
-For LinkedIn events
-
-ORDER BY received_at DESC
-
+FILTERS
+--------------------------------------------------
+Use ONLY schema columns and allowed values.
+Location terms → ONLY location.
 
 --------------------------------------------------
-Step 5 — Partition or Limit
+SEMANTIC
+--------------------------------------------------
+Apply pipeline_stage = 'OPPORTUNITY_FOUND' ONLY for job discovery queries
+(jobs, openings, opportunities, recent, new).
 
-Check whether any filter column in the WHERE clause contains multiple values.
+Do NOT apply for status, tracking, or summary queries.
 
-Examples of multiple value filters
+pending/action → action_required = TRUE
 
-pipeline_stage IN ('ASSESSMENT','INTERVIEW')
-company IN ('Accenture','Kroll')
-role ILIKE '%sde%' OR role ILIKE '%ai%'
+--------------------------------------------------
+TIME
+--------------------------------------------------
+Generic → COALESCE(deadline, event_date)
 
-If a column has multiple comparison values, partition results by that column so that each value is represented fairly.
+upcoming → >= CURRENT_DATE  
+past → < CURRENT_DATE  
 
-Use window partitioning and return up to 15 rows per unique value.
+deadline → deadline  
+interview/schedule → event_date  
 
-Example pattern
+If time used → include time column(s)
+
+--------------------------------------------------
+PARTITION
+--------------------------------------------------
+Use PARTITION BY when results may be skewed or contain multiple groups
+(e.g., pipeline_stage, company, role), even if not explicitly filtered.
 
 SELECT *
 FROM (
-    SELECT
-        ...,
-        ROW_NUMBER() OVER (
-            PARTITION BY partition_column
-            ORDER BY last_updated_at DESC
-        ) AS rn
-    FROM opportunities
-    WHERE ...
-) sub
+  SELECT <cols>,
+  ROW_NUMBER() OVER (
+    PARTITION BY <col>
+    ORDER BY <time_col> DESC
+  ) rn
+  FROM <table>
+  WHERE <filters>
+) t
 WHERE rn <= 15
-ORDER BY partition_column, rn;
+ORDER BY <col>, rn;
 
+Else → LIMIT 15
 
-If all filters contain only a single constant value, do not use partitioning.
-
-Use
-
-LIMIT 15
 --------------------------------------------------
+SELECT
+--------------------------------------------------
+Base:
+jobs → company, role  
+linkedin → person_name, person_company  
 
-Step 6 — Generate Final Query
+Add ONLY if needed:
+location, pipeline_stage, deadline, event_date,
+action_required, interaction_type,
+salary_amount, min_experience_years, max_experience_years  
 
-Combine the selected tables, filters, projections, sorting, and limits to produce the final SQL query.
+Remove fixed or irrelevant columns.
 
-Return ONLY the SQL query.
+If PARTITION used → include partition column  
+
+If single-value filters:
+→ include emails.gmail_message_id  
+→ JOIN emails ON <table>.email_id = emails.id  
+
+--------------------------------------------------
+ORDER
+--------------------------------------------------
+jobs → ORDER BY last_updated_at DESC  
+linkedin → ORDER BY emails.received_at DESC  
+
+Always include ORDER BY
+
+--------------------------------------------------
+OUTPUT
+--------------------------------------------------
+ONLY SQL
 """
 
 SQL_EXPLANATION_PROMPT="""You are a personal Placement Manager helping a student track and manage job opportunities and application progress.

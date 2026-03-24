@@ -1,4 +1,6 @@
 import os
+import re
+import time
 import concurrent.futures
 from dotenv import load_dotenv
 from google import genai
@@ -25,7 +27,7 @@ if not API_KEY:
 
 
 # --------------------------------------------------
-# 🔥 INTERNAL: RUN INSIDE PROCESS (VERY IMPORTANT)
+# 🔥 INTERNAL: RUN INSIDE PROCESS
 # --------------------------------------------------
 def _generate_content(prompt: str, model: str, temp: float, api_key: str):
     print("   [Child] Starting Gemini call")
@@ -47,23 +49,21 @@ def _generate_content(prompt: str, model: str, temp: float, api_key: str):
 
 
 # --------------------------------------------------
-# 🔥 GENERIC LLM CALLER WITH TIMEOUT + RETRY
+# 🔥 GENERIC LLM CALLER (FINAL VERSION - FIXED)
 # --------------------------------------------------
-@retry(max_attempts=2)
+@retry(max_attempts=1)
 def call_llm(prompt: str, model: str, temp: float = 0) -> str:
 
-    TIMEOUT_SECONDS = 15
+    TIMEOUT_SECONDS = 50
 
     print("\n➡️ Entered call_llm")
 
     executor = None
 
     try:
-        print("➡️ Creating process pool")
+        time.sleep(1)  # 🔥 basic rate limiter
 
         executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
-
-        print("➡️ Submitting LLM task")
 
         future = executor.submit(
             _generate_content,
@@ -79,52 +79,63 @@ def call_llm(prompt: str, model: str, temp: float = 0) -> str:
             print("✅ Got response from LLM")
 
         except concurrent.futures.TimeoutError:
-            print("⏱ TIMEOUT → force killing process")
+            print("⏱ TIMEOUT → DO NOT RETRY (quota may be consumed)")
 
-            # 🔥 CRITICAL FIX
-            executor.shutdown(wait=False, cancel_futures=True)
+            # 🔥 FIX: force shutdown properly
+            executor.shutdown(wait=True, cancel_futures=True)
+            executor = None
 
-            raise NetworkError("LLM request timed out")
+            raise LLMAPIError("LLM request timed out")
 
         # --------------------------------------------------
         # EMPTY RESPONSE CHECK
         # --------------------------------------------------
         if not response or not getattr(response, "text", None):
-            print("❌ Empty response detected")
             raise LLMAPIError("Empty response from LLM")
-
-        print("✅ Returning response text")
 
         return response.text
 
     except Exception as e:
 
         print(f"❌ Exception caught: {e}")
-
         msg = str(e).lower()
 
         # -----------------------------
-        # RATE LIMIT / QUOTA
+        # 🔴 RATE LIMIT / QUOTA
         # -----------------------------
         if "quota" in msg or "limit" in msg:
-            raise RateLimitError("LLM quota or rate limit exceeded")
+
+            if "perday" in msg or "free_tier_requests" in msg:
+                print("🛑 DAILY QUOTA EXHAUSTED")
+                raise RateLimitError("DAILY_QUOTA_EXHAUSTED")
+
+            match = re.search(r"retry in (\d+)", msg)
+            if match:
+                delay = int(match.group(1))
+                print(f"⏳ Temporary rate limit → waiting {delay}s")
+                time.sleep(delay)
+
+            raise RateLimitError("TEMP_RATE_LIMIT")
 
         # -----------------------------
-        # AUTHENTICATION ERROR
+        # AUTH ERROR
         # -----------------------------
         if "api key" in msg or "permission" in msg or "unauthorized" in msg:
             raise AuthenticationError("Invalid or missing API key")
 
         # -----------------------------
-        # NETWORK ERROR (IMPORTANT FIX)
+        # NETWORK DOWN
         # -----------------------------
         if (
-            "getaddrinfo failed" in msg   # 🔥 DNS failure (NO INTERNET)
+            "getaddrinfo failed" in msg
             or "name or service not known" in msg
             or "temporary failure in name resolution" in msg
         ):
             raise NetworkDownError(f"DNS/network failure: {e}")
 
+        # -----------------------------
+        # NETWORK ERROR
+        # -----------------------------
         if (
             "timeout" in msg
             or "connection" in msg
@@ -133,7 +144,7 @@ def call_llm(prompt: str, model: str, temp: float = 0) -> str:
             raise NetworkError(f"LLM network error: {e}")
 
         # -----------------------------
-        # SERVICE DOWN / SERVER ERROR
+        # SERVICE DOWN
         # -----------------------------
         if "500" in msg or "503" in msg or "unavailable" in msg:
             raise ServiceUnavailableError("LLM service unavailable")
@@ -144,6 +155,9 @@ def call_llm(prompt: str, model: str, temp: float = 0) -> str:
         raise LLMAPIError(f"LLM API failed: {e}")
 
     finally:
-        # 🔥 CRITICAL: ensure no blocking cleanup
+        # 🔥 CRITICAL FIX: ensure proper cleanup
         if executor:
-            executor.shutdown(wait=False)
+            try:
+                executor.shutdown(wait=True)
+            except Exception:
+                pass
