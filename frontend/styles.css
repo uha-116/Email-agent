@@ -1,0 +1,513 @@
+/* ═══════════════════════════════════════════
+   style.css — Uharika Job Updates Chat UI
+   ═══════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── CSS Variables ── */
+:root {
+  --bg:                 #0a0a0a;
+  --surface:            #141414;
+  --input-bg:           #1c1c1c;
+  --border:             #272727;
+  --border-focus:       #3a3a3a;
+  --text:               #f0f0f0;
+  --text-dim:           #d4d4d4;
+  --muted:              #666;
+  --btn-active-bg:      #ffffff;
+  --btn-active-icon:    #0a0a0a;
+  --btn-disabled-bg:    #1e1e1e;
+  --btn-disabled-icon:  #3a3a3a;
+  --user-bubble-bg:     #1f1f1f;
+  --user-bubble-border: #2c2c2c;
+  --avatar-bg:          #1a1a1a;
+  --avatar-border:      #282828;
+  --hint-color:         #333;
+  --dot-color:          #555;
+  --stopped-color:      #4a4a4a;
+  --font-main:          'Sora', sans-serif;
+  --font-mono:          'JetBrains Mono', monospace;
+  --content-max:        1100px;
+  --content-pad:        3rem;
+  --radius-btn:         10px;
+  --radius-bubble-user: 18px 18px 4px 18px;
+  --radius-input:       14px;
+  --transition-fast:    .15s ease;
+  --transition-std:     .25s ease;
+  --transition-slow:    .4s cubic-bezier(.22,.68,0,1.15);
+}
+
+/* ── Reset ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ══════════════════════════════
+   ROOT — html & body fill the full screen.
+   body is the scroller so the scrollbar
+   always appears at the true right edge
+   of the viewport.
+══════════════════════════════ */
+html {
+  height: 100%;
+  background: var(--bg);
+}
+
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-main);
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+
+  /* KEY FIX: body does NOT hide overflow —
+     it scrolls vertically so the native
+     scrollbar lives at the far right of the
+     viewport (not inside any inner div).     */
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  /* Webkit scrollbar — pinned to screen right */
+  scrollbar-width: thin;
+  scrollbar-color: #2e2e2e transparent;
+}
+
+body::-webkit-scrollbar        { width: 5px; }
+body::-webkit-scrollbar-track  { background: transparent; }
+body::-webkit-scrollbar-thumb  { background: #2e2e2e; border-radius: 3px; }
+body::-webkit-scrollbar-thumb:hover { background: #3e3e3e; }
+
+/* ══════════════════════════════
+   APP SHELL
+   Full-viewport column, but NOT the
+   scroller — body scrolls instead.
+══════════════════════════════ */
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  height: 100vh;          /* lock to viewport height          */
+  width: 100%;
+  overflow: hidden;       /* #app itself never scrolls        */
+  position: relative;
+}
+
+/* ══════════════════════════════
+   CONTENT LIMITER
+   Reusable inner wrapper that centres
+   and width-caps all visible content
+   while the scrollbar stays on body.
+══════════════════════════════ */
+.content-wrap {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding-left:  var(--content-pad);
+  padding-right: var(--content-pad);
+}
+
+/* ══════════════════════════════
+   WELCOME SCREEN
+══════════════════════════════ */
+#welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 2rem;
+  transition: opacity var(--transition-slow), transform var(--transition-slow);
+}
+
+#welcome.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-24px) scale(.97);
+  position: absolute;
+  width: 100%;
+  top: 0; left: 0; right: 0;
+}
+
+.welcome-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #1e1e1e 0%, #131313 100%);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+
+.welcome-icon svg { width: 26px; height: 26px; }
+
+#welcome h1 {
+  font-size: clamp(1.45rem, 3.8vw, 1.95rem);
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+#welcome h1 .sub {
+  display: block;
+  color: var(--muted);
+  font-weight: 300;
+  font-size: .92em;
+  margin-top: 4px;
+}
+
+#welcome .tagline {
+  font-size: 0.83rem;
+  color: var(--muted);
+  text-align: center;
+  max-width: 320px;
+  font-weight: 300;
+  letter-spacing: .01em;
+}
+
+/* ══════════════════════════════
+   CHAT AREA
+   Fills remaining space and scrolls
+   via body (not itself). Content is
+   centred by .content-wrap inside.
+══════════════════════════════ */
+#chat-area {
+  flex: 1;
+  overflow: hidden;         /* no inner scrollbar — body scrolls */
+  display: none;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+#chat-area.active {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Inner scroller — full width so body
+   scrollbar is at the true screen edge.
+   Content constrained by .content-wrap. */
+#chat-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Remove own scrollbar — body owns it */
+  scrollbar-width: none;
+}
+#chat-scroll::-webkit-scrollbar { display: none; }
+
+/* Message list inside the scroll pane */
+#chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 2rem 0 1rem;
+}
+
+/* ══════════════════════════════
+   MESSAGE ROWS
+══════════════════════════════ */
+.msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  animation: msgSlideIn .3s cubic-bezier(.22,.68,0,1.2) both;
+}
+
+@keyframes msgSlideIn {
+  from { opacity: 0; transform: translateY(16px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* — User bubble (right) — */
+.msg-row.user { flex-direction: row-reverse; }
+
+.msg-row.user .bubble {
+  background: var(--user-bubble-bg);
+  border: 1px solid var(--user-bubble-border);
+  border-radius: var(--radius-bubble-user);
+  padding: 11px 16px;
+  max-width: 60%;
+  font-size: 0.91rem;
+  color: #e0e0e0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+/* — AI bubble (left) — */
+.msg-row.ai { flex-direction: row; }
+
+.msg-row.ai .avatar {
+  width: 30px; height: 30px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--avatar-bg);
+  border: 1px solid var(--avatar-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 3px;
+}
+
+.msg-row.ai .avatar svg { width: 14px; height: 14px; }
+
+.msg-row.ai .bubble {
+  max-width: 75%;
+  font-size: 0.91rem;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 3px 0;
+  line-height: 1.7;
+}
+
+/* — Typing indicator dots — */
+.typing-dots {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 8px 0 4px;
+}
+
+.typing-dots span {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--dot-color);
+  animation: dotBounce 1.3s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(2) { animation-delay: .18s; }
+.typing-dots span:nth-child(3) { animation-delay: .36s; }
+
+@keyframes dotBounce {
+  0%, 75%, 100% { transform: translateY(0);   opacity: .35; }
+  35%            { transform: translateY(-7px); opacity: 1;   }
+}
+
+/* — Stopped state — */
+.stopped-msg {
+  font-size: 0.82rem;
+  color: var(--stopped-color);
+  font-style: italic;
+  padding: 2px 0;
+}
+
+/* ══════════════════════════════
+   BOTTOM BAR
+══════════════════════════════ */
+#bottom-bar {
+  background: var(--bg);
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  padding-bottom: 22px;
+  padding-top: 12px;
+}
+
+#bottom-bar::before {
+  content: '';
+  position: absolute;
+  top: -40px; left: 0; right: 0;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+}
+
+/* — Input row wrapper — */
+#input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  padding: 10px 10px 10px 16px;
+  transition: border-color var(--transition-fast);
+}
+
+#input-row:focus-within { border-color: var(--border-focus); }
+
+/* — Textarea — */
+#user-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--font-main);
+  font-size: 0.91rem;
+  resize: none;
+  max-height: 160px;
+  min-height: 24px;
+  line-height: 1.55;
+  overflow-y: auto;
+  scrollbar-width: none;
+  caret-color: #777;
+  opacity: 1 !important;
+  cursor: text !important;
+}
+
+#user-input::placeholder { color: var(--muted); }
+#user-input::-webkit-scrollbar { display: none; }
+
+/* ══════════════════════════════
+   SEND / PAUSE BUTTON WRAPPER
+══════════════════════════════ */
+#send-btn-wrap {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+}
+
+/* ══════════════════════════════
+   SEND / PAUSE BUTTON
+══════════════════════════════ */
+#send-btn {
+  width: 38px; height: 38px;
+  border-radius: var(--radius-btn);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition:
+    background var(--transition-fast),
+    transform   var(--transition-fast),
+    box-shadow  var(--transition-fast);
+  background: var(--btn-disabled-bg);
+}
+
+#send-btn:disabled:not(.processing) {
+  background: var(--btn-disabled-bg);
+  cursor: default;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+#send-btn:not(:disabled),
+#send-btn.processing {
+  background: var(--btn-active-bg) !important;
+  box-shadow: 0 4px 16px rgba(255,255,255,.08);
+  cursor: pointer;
+}
+
+#send-btn:not(:disabled):hover,
+#send-btn.processing:hover {
+  transform: scale(1.07);
+  background: #efefef !important;
+  box-shadow: 0 6px 20px rgba(255,255,255,.14);
+}
+
+#send-btn:not(:disabled):active,
+#send-btn.processing:active {
+  transform: scale(.93);
+  box-shadow: none;
+}
+
+/* ── Icon layers ── */
+#send-btn .icon-send,
+#send-btn .icon-pause {
+  position: absolute;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+#send-btn .icon-send  { opacity: 1; transform: scale(1);   }
+#send-btn .icon-pause { opacity: 0; transform: scale(.55); }
+
+#send-btn.processing .icon-send  { opacity: 0; transform: scale(.55); }
+#send-btn.processing .icon-pause { opacity: 1; transform: scale(1);   }
+
+#send-btn:disabled:not(.processing) .icon-send path,
+#send-btn:disabled:not(.processing) .icon-send polygon {
+  stroke: var(--btn-disabled-icon) !important;
+  fill:   var(--btn-disabled-icon) !important;
+}
+
+#send-btn:not(:disabled):not(.processing) .icon-send path,
+#send-btn:not(:disabled):not(.processing) .icon-send polygon {
+  stroke: var(--btn-active-icon) !important;
+  fill:   var(--btn-active-icon) !important;
+}
+
+#send-btn.processing .icon-pause rect {
+  fill: var(--btn-active-icon) !important;
+}
+
+/* ══════════════════════════════
+   TOOLTIP — "Please wait…"
+══════════════════════════════ */
+#wait-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  background: #191919;
+  border: 1px solid #303030;
+  color: #999;
+  font-family: var(--font-main);
+  font-size: 0.71rem;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: 8px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .18s ease, transform .18s ease;
+  z-index: 200;
+  box-shadow: 0 4px 18px rgba(0,0,0,.6);
+}
+
+#wait-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%; left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #303030;
+}
+
+#wait-tooltip.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ══════════════════════════════
+   HINT LINE
+══════════════════════════════ */
+.hint {
+  font-size: 0.7rem;
+  color: var(--hint-color);
+  text-align: center;
+  margin-top: 9px;
+  font-family: var(--font-mono);
+  letter-spacing: .03em;
+  user-select: none;
+}
+
+/* ══════════════════════════════
+   RESPONSIVE
+══════════════════════════════ */
+@media (max-width: 768px) {
+  :root { --content-pad: 1.4rem; }
+  .msg-row.user .bubble { max-width: 80%; }
+  .msg-row.ai .bubble   { max-width: 88%; }
+}
+
+@media (max-width: 520px) {
+  :root { --content-pad: 1rem; }
+  #welcome h1 { font-size: 1.35rem; }
+  .msg-row.user .bubble,
+  .msg-row.ai .bubble { max-width: 92%; }
+}
