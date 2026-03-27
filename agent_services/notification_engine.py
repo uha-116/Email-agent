@@ -1,5 +1,7 @@
-from db_storage.db_connection import get_db_connection
-from agent_services.telegram_notifier import send_telegram
+# notification_engine.py
+from backend.db_storage.db_connection import get_db_connection
+from backend.agent_services.telegram_notifier import send_telegram
+from backend.error_handling import DBConnectionError, NetworkError, NetworkDownError
 
 
 def notification_handle(result):
@@ -12,28 +14,65 @@ def notification_handle(result):
     if not all_ids:
         return
 
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = None
+    cur = None
 
-    query = """
-    SELECT
-        o.company,
-        o.role,
-        o.pipeline_stage,
-        o.deadline,
-        o.event_date,
-        e.gmail_message_id
-    FROM opportunities o
-    JOIN emails e
-        ON o.email_id = e.id
-    WHERE o.id = ANY(%s);
-    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
 
-    cur.execute(query, (all_ids,))
-    rows = cur.fetchall()
+        query = """
+        SELECT
+            o.company,
+            o.role,
+            o.pipeline_stage,
+            o.deadline,
+            o.event_date,
+            e.gmail_message_id
+        FROM opportunities o
+        JOIN emails e
+            ON o.email_id = e.id
+        WHERE o.id = ANY(%s);
+        """
 
-    cur.close()
-    conn.close()
+        cur.execute(query, (all_ids,))
+        rows = cur.fetchall()
+
+    # --------------------------------------------------
+    # EXPECTED DB ERRORS
+    # --------------------------------------------------
+    except (DBConnectionError, NetworkError, NetworkDownError) as e:
+        print(f"❌ DB error in notification_engine: {e}")
+        return
+
+    # --------------------------------------------------
+    # UNKNOWN ERRORS
+    # --------------------------------------------------
+    except Exception as e:
+        print(f"❌ Unexpected DB error: {e}")
+        return
+
+    # --------------------------------------------------
+    # CLEANUP (ALWAYS RUNS)
+    # --------------------------------------------------
+    finally:
+        try:
+            if cur:
+                cur.close()
+        except Exception:
+            pass
+
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+
+    # --------------------------------------------------
+    # EMPTY RESULT SAFETY
+    # --------------------------------------------------
+    if not rows:
+        return
 
     # --------------------------------------------------
     # Group records by pipeline stage
@@ -77,7 +116,6 @@ def notification_handle(result):
         # --------------------------------------------------
         # Opportunities
         # --------------------------------------------------
-
         if stage == "OPPORTUNITY_FOUND":
 
             count = len(pipeline_records["OPPORTUNITY_FOUND"])
@@ -90,7 +128,6 @@ def notification_handle(result):
         # --------------------------------------------------
         # Assessments
         # --------------------------------------------------
-
         elif stage == "ASSESSMENT":
 
             for record in pipeline_records["ASSESSMENT"]:
@@ -106,7 +143,6 @@ def notification_handle(result):
         # --------------------------------------------------
         # Interviews
         # --------------------------------------------------
-
         elif stage == "INTERVIEW":
 
             for record in pipeline_records["INTERVIEW"]:
@@ -122,7 +158,6 @@ def notification_handle(result):
         # --------------------------------------------------
         # Selected
         # --------------------------------------------------
-
         elif stage == "SELECTED":
 
             for record in pipeline_records["SELECTED"]:
@@ -137,7 +172,6 @@ def notification_handle(result):
         # --------------------------------------------------
         # Rejected
         # --------------------------------------------------
-
         elif stage == "REJECTED":
 
             for record in pipeline_records["REJECTED"]:
@@ -157,7 +191,26 @@ def notification_handle(result):
 
         final_message = "\n\n".join(messages)
 
-        send_telegram(final_message)
+        # 🔥 Telegram message limit protection
+        if len(final_message) > 4000:
+            final_message = final_message[:4000] + "\n...truncated"
+
+        try:
+            send_telegram(final_message)
+
+        except NetworkError as e:
+            print(f"⚠️ Telegram failed (1st try): {e}")
+
+            # 🔁 Retry once
+            try:
+                send_telegram(final_message)
+                print("✅ Telegram retry success")
+
+            except Exception as retry_error:
+                print(f"❌ Telegram retry failed: {retry_error}")
+
+        except Exception as e:
+            print(f"❌ Unexpected Telegram error: {e}")
 
 
 # --------------------------------------------------

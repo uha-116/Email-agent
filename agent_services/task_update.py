@@ -1,8 +1,10 @@
+# task_update.py
 import os
 import time
 import requests
 from dotenv import load_dotenv
 from db_storage.db_connection import get_db_connection
+from error_handling import DBConnectionError, NetworkError, NetworkDownError
 
 load_dotenv()
 
@@ -23,31 +25,52 @@ last_update_id = None
 
 def fetch_pending_confirmations():
 
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = None
+    cur = None
 
-    query = """
-    SELECT DISTINCT ON (company, pipeline_stage)
-        id,
-        company,
-        pipeline_stage,
-        deadline,
-        event_date
-    FROM opportunities
-    WHERE action_required = TRUE
-    AND pipeline_stage IN ('ASSESSMENT','INTERVIEW')
-    AND (
-        deadline <= CURRENT_DATE
-        OR event_date::date <= CURRENT_DATE
-    )
-    ORDER BY company, deadline DESC NULLS LAST, event_date DESC NULLS LAST;
-    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
 
-    cur.execute(query)
-    rows = cur.fetchall()
+        query = """
+        SELECT DISTINCT ON (company, pipeline_stage)
+            id,
+            company,
+            pipeline_stage,
+            deadline,
+            event_date
+        FROM opportunities
+        WHERE action_required = TRUE
+        AND pipeline_stage IN ('ASSESSMENT','INTERVIEW')
+        AND (
+            deadline <= CURRENT_DATE
+            OR event_date::date <= CURRENT_DATE
+        )
+        ORDER BY company, deadline DESC NULLS LAST, event_date DESC NULLS LAST;
+        """
 
-    cur.close()
-    conn.close()
+        cur.execute(query)
+        rows = cur.fetchall()
+
+    except (DBConnectionError, NetworkError, NetworkDownError) as e:
+        print(f"❌ DB error in fetch_pending_confirmations: {e}")
+        return
+
+    except Exception as e:
+        print(f"❌ Unexpected DB error: {e}")
+        return
+
+    finally:
+        try:
+            if cur:
+                cur.close()
+        except:
+            pass
+        try:
+            if conn:
+                conn.close()
+        except:
+            pass
 
     if not rows:
         print("No pending confirmations.")
@@ -95,6 +118,10 @@ def send_next_question():
 
 def send_confirmation(company, stage, opportunity_id, deadline=None, event_date=None):
 
+    if not BOT_TOKEN or not CHAT_ID:
+        print("❌ Missing BOT_TOKEN or CHAT_ID")
+        return
+
     if stage == "ASSESSMENT":
         text = f"Did you complete {company} assessment?\nDeadline: {deadline}"
 
@@ -119,9 +146,18 @@ def send_confirmation(company, stage, opportunity_id, deadline=None, event_date=
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    requests.post(url, json=payload)
+    try:
+        requests.post(url, json=payload, timeout=5)
+        print(f"Question sent for opportunity {opportunity_id}")
 
-    print(f"Question sent for opportunity {opportunity_id}")
+    except requests.exceptions.Timeout:
+        print("⚠️ Telegram timeout")
+
+    except requests.exceptions.ConnectionError:
+        print("⚠️ Telegram connection failed")
+
+    except Exception as e:
+        print(f"❌ Telegram error: {e}")
 
 
 # --------------------------------------------------
@@ -142,14 +178,13 @@ def handle_response(callback_data):
     print("Company:", company)
     print("Stage:", stage)
 
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = None
+    cur = None
 
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
 
-        # --------------------------------------------------
-        # USER CONFIRMED COMPLETION
-        # --------------------------------------------------
         if callback_data.startswith("confirm_"):
 
             cur.execute(
@@ -166,10 +201,6 @@ def handle_response(callback_data):
 
             print("✔ Marked all matching opportunities as completed")
 
-
-        # --------------------------------------------------
-        # USER MARKED RECORD AS IRRELEVANT
-        # --------------------------------------------------
         elif callback_data.startswith("remove_"):
 
             cur.execute(
@@ -184,10 +215,6 @@ def handle_response(callback_data):
 
             print("✖ Removed incorrect opportunity records")
 
-
-        # --------------------------------------------------
-        # USER SAID STILL PENDING
-        # --------------------------------------------------
         elif callback_data.startswith("pending_"):
 
             cur.execute(
@@ -203,21 +230,30 @@ def handle_response(callback_data):
 
             print("⏳ Still pending — timestamp refreshed")
 
-
         conn.commit()
 
     except Exception as e:
-
-        conn.rollback()
+        try:
+            if conn:
+                conn.rollback()
+        except:
+            pass
         print("Database error:", e)
 
     finally:
+        try:
+            if cur:
+                cur.close()
+        except:
+            pass
+        try:
+            if conn:
+                conn.close()
+        except:
+            pass
 
-        cur.close()
-        conn.close()
-
-    # Send next confirmation
     send_next_question()
+
 
 # --------------------------------------------------
 # Listen for Telegram button clicks
@@ -231,24 +267,42 @@ def listen_for_responses():
 
     while True:
 
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+        try:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
 
-        if last_update_id:
-            url += f"?offset={last_update_id + 1}"
+            if last_update_id:
+                url += f"?offset={last_update_id + 1}"
 
-        response = requests.get(url).json()
+            response = requests.get(url, timeout=5)
+            data = response.json()
 
-        for update in response["result"]:
+        except requests.exceptions.Timeout:
+            print("⚠️ Telegram polling timeout")
+            time.sleep(2)
+            continue
 
-            last_update_id = update["update_id"]
+        except requests.exceptions.ConnectionError:
+            print("⚠️ Telegram polling connection error")
+            time.sleep(2)
+            continue
+
+        except Exception as e:
+            print(f"❌ Polling error: {e}")
+            time.sleep(2)
+            continue
+
+        for update in data.get("result", []):
+
+            last_update_id = update.get("update_id")
 
             if "callback_query" in update:
+                try:
+                    cb_data = update["callback_query"]["data"]
+                    handle_response(cb_data)
+                except Exception as e:
+                    print(f"❌ Callback handling error: {e}")
 
-                data = update["callback_query"]["data"]
-
-                handle_response(data)
-
-        time.sleep(2)
+        time.sleep(1)
 
 
 # --------------------------------------------------
