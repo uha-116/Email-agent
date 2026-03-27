@@ -6,9 +6,9 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-EMBEDDINGS_FILE = "data/dataset_embeddings.npy"
-QUESTIONS_FILE = "data/dataset_questions.pkl"
-DATA_JSON = "data/data.json"
+EMBEDDINGS_FILE = "backend/data/dataset_embeddings.npy"
+QUESTIONS_FILE = "backend/data/dataset_questions.pkl"
+DATA_JSON = "backend/data/data.json"
 
 
 # =====================================================

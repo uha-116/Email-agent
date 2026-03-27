@@ -1,9 +1,9 @@
 import os
 import re
 import time
-import concurrent.futures
+import subprocess
+import sys
 from dotenv import load_dotenv
-from google import genai
 
 from backend.error_handling import (
     retry,
@@ -27,29 +27,7 @@ if not API_KEY:
 
 
 # --------------------------------------------------
-# 🔥 INTERNAL: RUN INSIDE PROCESS
-# --------------------------------------------------
-def _generate_content(prompt: str, model: str, temp: float, api_key: str):
-    print("   [Child] Starting Gemini call")
-
-    client = genai.Client(api_key=api_key)
-
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config={
-            "temperature": temp,
-            "max_output_tokens": 10000
-        }
-    )
-
-    print("   [Child] Gemini call finished")
-
-    return response
-
-
-# --------------------------------------------------
-# 🔥 GENERIC LLM CALLER (FINAL VERSION - FIXED)
+# 🔥 GENERIC LLM CALLER (SUBPROCESS VERSION)
 # --------------------------------------------------
 @retry(max_attempts=1)
 def call_llm(prompt: str, model: str, temp: float = 0) -> str:
@@ -58,42 +36,46 @@ def call_llm(prompt: str, model: str, temp: float = 0) -> str:
 
     print("\n➡️ Entered call_llm")
 
-    executor = None
-
     try:
         time.sleep(1)  # 🔥 basic rate limiter
 
-        executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
+        # 🔥 Absolute path to worker
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        WORKER_PATH = os.path.join(BASE_DIR, "llm_worker.py")
 
-        future = executor.submit(
-            _generate_content,
-            prompt,
-            model,
-            temp,
-            API_KEY
+        print("⏳ Spawning LLM worker...")
+
+        result = subprocess.run(
+            [sys.executable, WORKER_PATH, model, str(temp)],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT_SECONDS,
+            encoding="utf-8",
+             errors="replace"
         )
 
-        try:
-            print("⏳ Waiting for result...")
-            response = future.result(timeout=TIMEOUT_SECONDS)
-            print("✅ Got response from LLM")
+        print("✅ Worker finished execution")
 
-        except concurrent.futures.TimeoutError:
-            print("⏱ TIMEOUT → DO NOT RETRY (quota may be consumed)")
+        output = (result.stdout or "").strip()
 
-            # 🔥 FIX: force shutdown properly
-            executor.shutdown(wait=True, cancel_futures=True)
-            executor = None
-
-            raise LLMAPIError("LLM request timed out")
+        # --------------------------------------------------
+        # ERROR FROM WORKER
+        # --------------------------------------------------
+        if output.startswith("ERROR::"):
+            raise Exception(output)
 
         # --------------------------------------------------
         # EMPTY RESPONSE CHECK
         # --------------------------------------------------
-        if not response or not getattr(response, "text", None):
+        if not output:
             raise LLMAPIError("Empty response from LLM")
 
-        return response.text
+        return output
+
+    except subprocess.TimeoutExpired as e:
+        print("⏱ TIMEOUT → killing worker (safe isolation)")
+        raise LLMAPIError("LLM request timed out")
 
     except Exception as e:
 
@@ -108,12 +90,6 @@ def call_llm(prompt: str, model: str, temp: float = 0) -> str:
             if "perday" in msg or "free_tier_requests" in msg:
                 print("🛑 DAILY QUOTA EXHAUSTED")
                 raise RateLimitError("DAILY_QUOTA_EXHAUSTED")
-
-            match = re.search(r"retry in (\d+)", msg)
-            if match:
-                delay = int(match.group(1))
-                print(f"⏳ Temporary rate limit → waiting {delay}s")
-                time.sleep(delay)
 
             raise RateLimitError("TEMP_RATE_LIMIT")
 
@@ -153,11 +129,3 @@ def call_llm(prompt: str, model: str, temp: float = 0) -> str:
         # UNKNOWN ERROR
         # -----------------------------
         raise LLMAPIError(f"LLM API failed: {e}")
-
-    finally:
-        # 🔥 CRITICAL FIX: ensure proper cleanup
-        if executor:
-            try:
-                executor.shutdown(wait=True)
-            except Exception:
-                pass

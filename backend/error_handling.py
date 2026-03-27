@@ -120,7 +120,7 @@ class RateLimitError(BaseAppError):
 
 
 class ServiceUnavailableError(BaseAppError):
-    retryable = True
+    retryable = False
     user_message = "AI service is temporarily unavailable. Please try again later."
     show_to_user = True
 

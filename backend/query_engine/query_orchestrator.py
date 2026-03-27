@@ -45,14 +45,14 @@ def handle_query(question: str):
 
         if not result:
             print("❌ No SQL generated from intent")
-            return
+            return "No SQL could be generated."
 
         # fallback route
         if "route" in result:
             print("⚠️ Routed to LLM SQL generation")
             print("👉 This question requires LLM-based SQL generation (currently disabled)\n")
-            return
-            
+            return "This query requires advanced processing which is currently unavailable."
+
         count_sql = result.get("count_sql")
         list_sql = result.get("list_sql")
 
@@ -112,13 +112,16 @@ def handle_query(question: str):
         print("\n🎯 FINAL ANSWER:\n")
         print(explanation)
 
+        # 🔥 ONLY RETURN FINAL EXPLANATION (UI NEED)
         return explanation
 
     except BaseAppError as e:
         print(f"❌ ERROR: {e.user_message}")
+        return e.user_message
 
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
+        return "Something went wrong while processing your request."
 
 
 # =========================================================
@@ -151,10 +154,12 @@ def _handle_llm_sql(question):
         print("\n🎯 FINAL ANSWER:\n")
         print(explanation)
 
+        # 🔥 RETURN ONLY FINAL EXPLANATION
         return explanation
 
     except Exception as e:
         print("❌ LLM SQL failed:", e)
+        return "Failed to process query using AI."
 
 
 # =========================================================
@@ -201,7 +206,10 @@ def main():
         if q.lower() in ["exit", "quit"]:
             break
 
-        handle_query(q)
+        result = handle_query(q)
+
+        # optional debug
+        print("\n📦 RETURNED (for UI):\n", result)
 
 
 if __name__ == "__main__":

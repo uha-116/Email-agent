@@ -7,7 +7,7 @@ from backend.query_engine.sql_builder import build_sql
 
 
 SIMILARITY_THRESHOLD = 0.6
-DATA_FILE = "data/data.json"
+DATA_FILE = "backend/data/data.json"
 
 
 # -------------------------------------------------------
