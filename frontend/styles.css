@@ -510,4 +510,4 @@ body::-webkit-scrollbar-thumb:hover { background: #3e3e3e; }
   #welcome h1 { font-size: 1.35rem; }
   .msg-row.user .bubble,
   .msg-row.ai .bubble { max-width: 92%; }
-}
+} 

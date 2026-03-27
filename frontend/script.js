@@ -124,7 +124,7 @@ function appendAIPlaceholder() {
   wrap.appendChild(row);
   chatMsgs.appendChild(wrap);
   scrollToBottom();
-  return bubble;
+  return bubble; 
 }
 
 /* ─── Typewriter ─── */
