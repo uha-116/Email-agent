@@ -118,7 +118,7 @@ def main():
     batch = []
     BATCH_SIZE = 2
 
-    START_DATE = "2026/03/19"
+    START_DATE = compute_start_date()
     print(f"Auto START_DATE: {START_DATE}")
 
     query = f"in:inbox after:{START_DATE}"

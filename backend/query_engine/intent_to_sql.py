@@ -135,5 +135,6 @@ def resolve_user_question(user_question):
 
         return {
             "user_question": user_question,
-            "route": "LLM_SQL_GENERATION"
+            "route": "LLM_SQL_GENERATION",
+            "similarity": score
         }

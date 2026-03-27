@@ -3,6 +3,9 @@ import os
 import time
 from dotenv import load_dotenv
 from google import genai
+import sys
+
+sys.stdout.reconfigure(encoding='utf-8')
 
 
 # 🔥 Load env inside worker process
@@ -95,7 +98,7 @@ def run():
             # -----------------------------
             # UNKNOWN ERROR
             # -----------------------------
-            print("ERROR::LLMAPIError")
+            print(f"ERROR::LLMAPIError::{str(e)}")
             return
 
 

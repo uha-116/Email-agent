@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from backend.query_engine.intent_to_sql import resolve_user_question
 from backend.query_engine.sql_validator import validate_sql
 from backend.query_engine.query_runner import execute_query
+from backend.query_engine.entry_guard import check_entry_guard
 
 from backend.email_analyser.llm_gemini import call_llm
 from backend.email_analyser.prompts import (
@@ -42,10 +43,20 @@ def handle_query(question: str):
         print("\n🔍 STEP 1: INTENT TO SQL")
 
         result = resolve_user_question(question)
+        score = result.get("similarity", 0.0)
 
-        if not result:
-            print("❌ No SQL generated from intent")
-            return "No SQL could be generated."
+        print(f"SBERT Score: {score}")
+
+        if score < 0.4:
+            print("❌ Out of domain query")
+            return "Hi! I'm Job Application Tracking Assitant. I can only help you with Job related queries.Please ask questions related to your job openings and application status."
+
+        guard = check_entry_guard(question)
+
+        if guard["block"]:
+            print("⚠️ Blocked by entry guard")
+            return guard["message"]
+
 
         # fallback route
         if "route" in result:
@@ -72,7 +83,7 @@ def handle_query(question: str):
 
         if validation["decision"] != "YES":
             print("⚠️ Validation failed → switching to LLM SQL")
-            return _handle_llm_sql(question)
+            return "Query needs advanced processing"
 
         # =================================================
         # STEP 3: EXECUTION
