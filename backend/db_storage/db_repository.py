@@ -40,6 +40,30 @@ def decide_insert_or_update(
         ("INSERT", None)
         ("UPDATE", opportunity_id)
     """
+    # --------------------------------------------------
+    # 🟢 CASE 1: OPPORTUNITY_FOUND (SPECIAL HANDLING)
+    # --------------------------------------------------
+    if new_stage == "OPPORTUNITY_FOUND":
+
+        if role:
+            cur.execute(
+                """
+                SELECT id
+                FROM opportunities
+                WHERE LOWER(company) = LOWER(%s)
+                AND LOWER(role) = LOWER(%s)
+                AND pipeline_stage = %s;
+                """,
+                (company, role, new_stage)
+            )
+
+            row = cur.fetchone()
+
+            if row:
+                return "UPDATE", row[0]
+
+        # If no role OR no match → INSERT
+        return "INSERT", None
 
     # Look for existing record for same company + stage
     cur.execute(

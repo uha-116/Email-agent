@@ -96,6 +96,11 @@ def is_llm_worthy(label_ids: list[str]):
     if "CATEGORY_SOCIAL" in label_ids:
         return False
 
+    if "IMPORTANT" not in label_ids:
+        return False
+
+    
+
     return True
 
 

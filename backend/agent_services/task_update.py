@@ -42,20 +42,44 @@ def fetch_pending_confirmations():
         cur = conn.cursor()
 
         query = """
-        SELECT DISTINCT ON (company, pipeline_stage)
-            id,
-            company,
-            pipeline_stage,
-            deadline,
-            event_date
-        FROM opportunities
-        WHERE action_required = TRUE
-        AND pipeline_stage IN ('ASSESSMENT','INTERVIEW')
-        AND (
-            (deadline IS NOT NULL AND deadline >= CURRENT_DATE)
-            OR (event_date IS NOT NULL AND event_date::date >= CURRENT_DATE)
+       SELECT DISTINCT ON (o.company, o.pipeline_stage)
+            o.id,
+            o.company,
+            o.pipeline_stage,
+            o.deadline,
+            o.event_date
+        FROM opportunities o
+        WHERE o.action_required = TRUE
+
+        -- ❌ REMOVED response_locked condition
+
+        -- ✅ Prevent duplicate active questions
+        AND NOT EXISTS (
+            SELECT 1
+            FROM notifications n
+            WHERE n.opportunity_id = o.id
         )
-        ORDER BY company,pipeline_stage, deadline DESC NULLS LAST, event_date DESC NULLS LAST;
+
+        -- ✅ Cooldown logic (4 hours)
+        AND (
+            o.last_notified_at IS NULL
+            OR o.last_notified_at < NOW() - INTERVAL '4 hours'
+        )
+
+        -- ✅ Only relevant stages
+        AND o.pipeline_stage IN ('ASSESSMENT','INTERVIEW')
+
+        -- ✅ Date filtering
+        AND (
+            (o.deadline IS NOT NULL AND o.deadline >= CURRENT_DATE)
+            OR (o.event_date IS NOT NULL AND o.event_date::date >= CURRENT_DATE)
+        )
+
+        ORDER BY
+            o.company,
+            o.pipeline_stage,
+            o.deadline DESC NULLS LAST,
+            o.event_date DESC NULLS LAST;
         """
 
         cur.execute(query)
@@ -115,7 +139,7 @@ def send_next_question():
 
     if not pending_questions:
         print("All confirmations completed.")
-        ACTIVE_SESSION = False   # 🔥 STOP SESSION
+        ACTIVE_SESSION = False
         return
 
     question = pending_questions[0]
@@ -141,7 +165,6 @@ def send_confirmation(company, stage, opportunity_id, deadline=None, event_date=
 
     if stage == "ASSESSMENT":
         text = f"Did you complete {company} assessment?\nDeadline: {deadline}"
-
     elif stage == "INTERVIEW":
         text = f"Did you attend {company} interview?\nDate: {event_date}"
 
@@ -164,14 +187,38 @@ def send_confirmation(company, stage, opportunity_id, deadline=None, event_date=
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     try:
-        requests.post(url, json=payload, timeout=5)
-        print(f"Question sent for opportunity {opportunity_id}")
+        response = requests.post(url, json=payload, timeout=5)
+        res_json = response.json()
 
-    except requests.exceptions.Timeout:
-        print("⚠️ Telegram timeout")
+        message_id = res_json.get("result", {}).get("message_id")
 
-    except requests.exceptions.ConnectionError:
-        print("⚠️ Telegram connection failed")
+        print(f"Question sent for opportunity {opportunity_id}, message_id={message_id}")
+
+        # 🔥 Store notification + update last_notified_at
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            INSERT INTO notifications(opportunity_id, message_id)
+            VALUES (%s, %s)
+            ON CONFLICT (opportunity_id) DO NOTHING
+            """,
+            (opportunity_id, message_id)
+        )
+
+        cur.execute(
+            """
+            UPDATE opportunities
+            SET last_notified_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            """,
+            (opportunity_id,)
+        )
+
+        conn.commit()
+        cur.close()
+        conn.close()
 
     except Exception as e:
         print(f"❌ Telegram error: {e}")
@@ -201,9 +248,7 @@ def update_message_after_click(callback_query, choice):
                 "callback_data": "done"
             })
 
-        keyboard = {
-            "inline_keyboard": [keyboard_row]
-        }
+        keyboard = {"inline_keyboard": [keyboard_row]}
 
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageReplyMarkup"
 
@@ -228,10 +273,8 @@ def handle_response(callback_data, callback_query):
     if not pending_questions:
         return
 
-    # 🔥 ACK telegram immediately
     answer_callback(callback_query["id"])
 
-    # 🔥 Safety for invalid callback
     if "_" not in callback_data:
         print("⚠️ Invalid callback data")
         return
@@ -243,35 +286,24 @@ def handle_response(callback_data, callback_query):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # 🔥 Extract ID
         opportunity_id = int(callback_data.split("_")[-1])
 
-        # 🔥 Fetch correct record
+        # 🔥 Lock check (FIRST CLICK ONLY)
         cur.execute(
             """
-            SELECT company, pipeline_stage
-            FROM opportunities
+            UPDATE opportunities
+            SET response_locked = TRUE
             WHERE id = %s
+            AND response_locked = FALSE
             """,
             (opportunity_id,)
         )
 
-        row = cur.fetchone()
-
-        if not row:
-            print("⚠️ Opportunity not found or already handled")
+        if cur.rowcount == 0:
+            print("⚠️ Already answered — ignoring click")
             return
 
-        company, stage = row
-
-        # 🔥 Remove from queue safely
-        pending_questions[:] = [
-            q for q in pending_questions if q["id"] != opportunity_id
-        ]
-
         print("\nUser clicked:", callback_data)
-        print("Company:", company)
-        print("Stage:", stage)
 
         # ---------------------------
         # YES
@@ -285,18 +317,12 @@ def handle_response(callback_data, callback_query):
                 UPDATE opportunities
                 SET action_required = FALSE,
                     last_updated_at = CURRENT_TIMESTAMP
-                WHERE company = %s
-                AND pipeline_stage = %s
-                AND action_required = TRUE
+                WHERE id = %s
                 """,
-                (company, stage)
+                (opportunity_id,)
             )
 
-            if cur.rowcount == 0:
-                print("⚠️ Duplicate click ignored — already processed")
-                return
-
-            print("✔ Marked all matching opportunities as completed")
+            print("✔ Marked completed")
 
         # ---------------------------
         # IRRELEVANT
@@ -306,23 +332,14 @@ def handle_response(callback_data, callback_query):
             update_message_after_click(callback_query, "IRRELEVANT")
 
             cur.execute(
-                """
-                DELETE FROM opportunities
-                WHERE company = %s
-                AND pipeline_stage = %s
-                AND action_required = TRUE
-                """,
-                (company, stage)
+                "DELETE FROM opportunities WHERE id = %s",
+                (opportunity_id,)
             )
 
-            if cur.rowcount == 0:
-                print("⚠️ Already removed / duplicate click")
-                return
-
-            print("✖ Removed incorrect opportunity records")
+            print("✖ Removed opportunity")
 
         # ---------------------------
-        # NO (your logic preserved)
+        # NO
         # ---------------------------
         elif callback_data.startswith("pending_"):
 
@@ -331,41 +348,33 @@ def handle_response(callback_data, callback_query):
             cur.execute(
                 """
                 UPDATE opportunities
-                SET last_updated_at = CURRENT_TIMESTAMP
-                WHERE company = %s
-                AND pipeline_stage = %s
-                AND action_required = TRUE
+                SET last_notified_at = CURRENT_TIMESTAMP,
+                    last_updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
                 """,
-                (company, stage)
+                (opportunity_id,)
             )
 
-            if cur.rowcount == 0:
-                print("⚠️ Duplicate NO click ignored")
-                return
+            print("⏳ Marked for reminder")
 
-            print("⏳ Still pending — timestamp refreshed")
+        # 🔥 Remove notification always after response
+        cur.execute(
+            "DELETE FROM notifications WHERE opportunity_id = %s",
+            (opportunity_id,)
+        )
 
         conn.commit()
 
     except Exception as e:
-        try:
-            if conn:
-                conn.rollback()
-        except:
-            pass
+        if conn:
+            conn.rollback()
         print("Database error:", e)
 
     finally:
-        try:
-            if cur:
-                cur.close()
-        except:
-            pass
-        try:
-            if conn:
-                conn.close()
-        except:
-            pass
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
     send_next_question()
 
@@ -380,7 +389,14 @@ def listen_for_responses():
 
     print("\nListening for Telegram responses...\n")
 
+    start_time = time.time()
+
     while ACTIVE_SESSION:
+        if time.time() - start_time > 600:  # 10 minutes max
+            print("⏳ Cron timeout reached, exiting...")
+            break
+
+    # existing polling logic
 
         try:
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
@@ -391,31 +407,19 @@ def listen_for_responses():
             response = requests.get(url, timeout=5)
             data = response.json()
 
-        except requests.exceptions.Timeout:
-            print("⚠️ Telegram polling timeout")
-            time.sleep(2)
-            continue
-
-        except requests.exceptions.ConnectionError:
-            print("⚠️ Telegram polling connection error")
-            time.sleep(2)
-            continue
-
         except Exception as e:
             print(f"❌ Polling error: {e}")
             time.sleep(2)
             continue
 
         for update in data.get("result", []):
-
             last_update_id = update.get("update_id")
 
             if "callback_query" in update:
-                try:
-                    cb_data = update["callback_query"]["data"]
-                    handle_response(cb_data, update["callback_query"])
-                except Exception as e:
-                    print(f"❌ Callback handling error: {e}")
+                handle_response(
+                    update["callback_query"]["data"],
+                    update["callback_query"]
+                )
 
         time.sleep(1)
 
