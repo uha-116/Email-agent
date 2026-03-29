@@ -1,0 +1,2787 @@
+[
+  {
+    "question": "any deadlines pending",
+    "capability": "DEADLINE_STATUS",
+    "filters": {
+      "action_required": true,
+      "pipeline_stage": [
+        "ASSESSMENT",
+        "INTERVIEW",
+        "SELECTED",
+        "SHORTLISTED"
+      ]
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "deadline",
+      "details",
+      "event_date",
+      "pipeline_stage"
+    ]
+  },
+  {
+    "question": "any jobs for freshers",
+    "capability": "Experience_STATUS",
+    "filters": {
+      "fresher": true,
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any jobs where experience not mentioned",
+    "capability": "Experience_STATUS",
+    "filters": {
+      "experience_exist": false,
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "did google allow freshers",
+    "capability": "Experience_STATUS",
+    "filters": {
+      "fresher": true,
+      "company": "{COMPANY_NAME}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any rejections due to no experience",
+    "capability": "Experience_STATUS",
+    "filters": {
+      "pipeline_stage": "Rejected"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details"
+    ]
+  },
+  {
+    "question": "any company with flexible experience",
+    "capability": "Experience_STATUS",
+    "filters": {
+      "experience_exist": true,
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any entry level roles",
+    "capability": "Experience_STATUS",
+    "filters": {
+      "fresher": true,
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any roles for batch 2026",
+    "capability": "Experience_STATUS",
+    "filters": {
+      "fresher": true,
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any jobs require experience",
+    "capability": "Experience_STATUS",
+    "filters": {
+      "fresher": false,
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": "min_experience_years",
+    "projection": [
+      "company",
+      "role",
+      "min_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which roles iam in process for",
+    "capability": "ROLE_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SHORTLISTED",
+        "ASSESSMENT",
+        "INTERVIEW",
+        "SELECTED"
+      ]
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage"
+    ]
+  },
+  {
+    "question": "any internship roles",
+    "capability": "ROLE_STATUS",
+    "filters": {
+      "role": "{ROLE_TYPE}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any fulltime roles",
+    "capability": "ROLE_STATUS",
+    "filters": {
+      "role_exclude": "intern",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any role still pending review",
+    "capability": "ROLE_STATUS",
+    "filters": {
+      "action_required": false
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage"
+    ]
+  },
+  {
+    "question": "any role still in early stage",
+    "capability": "ROLE_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND",
+        "APPLIED"
+      ]
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage"
+    ]
+  },
+  {
+    "question": "any role not applied yet",
+    "capability": "ROLE_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which role is closest to decision",
+    "capability": "ROLE_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ]
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "whats the status of kroll",
+    "capability": "COMPANY_STATUS",
+    "filters": {
+      "company": "{COMPANY_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "pipeline_stage",
+      "salary_amount",
+      "location",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "details"
+    ]
+  },
+  {
+    "question": "any updates from company",
+    "capability": "COMPANY_STATUS",
+    "filters": {
+      "company": "{COMPANY_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "pipeline_stage",
+      "salary_amount",
+      "location",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "details"
+    ]
+  },
+  {
+    "question": "any company where process stopped",
+    "capability": "COMPANY_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED",
+        "REJECTED"
+      ]
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage",
+      "details"
+    ]
+  },
+  {
+    "question": "which company contacted me last",
+    "capability": "OPPORTUNITY",
+    "filters": {},
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "last_updated_at"
+    ]
+  },
+  {
+    "question": "how many companies i applied",
+    "capability": "COMPANY_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "APPLIED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show companies still in process",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT",
+        "APPLIED",
+        "INTERVIEW",
+        "SHORTLISTED"
+      ]
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage",
+      "details"
+    ]
+  },
+  {
+    "question": "any immediate deadlines",
+    "capability": "DEADLINE_STATUS",
+    "filters": {
+      "time_range": "{TIME}"
+    },
+    "group_by": "pipeline_stage",
+    "order_by": "deadline",
+    "projection": [
+      "company",
+      "pipeline_stage",
+      "deadline",
+      "details",
+      "event_date"
+    ]
+  },
+  {
+    "question": "do i have any deadlines today",
+    "capability": "DEADLINE_STATUS",
+    "filters": {
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "pipeline_stage",
+      "deadline",
+      "details",
+      "event_date"
+    ]
+  },
+  {
+    "question": "any assessment deadline coming up",
+    "capability": "DEADLINE_STATUS",
+    "filters": {
+      "time_range": "{TIME}",
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "deadline",
+      "details",
+      "event_date",
+      "action_required",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "what was my last deadline",
+    "capability": "DEADLINE_STATUS",
+    "filters": {},
+    "group_by": null,
+    "projection": [
+      "company",
+      "pipeline_stage",
+      "deadline",
+      "details",
+      "event_date"
+    ]
+  },
+  {
+    "question": "any rejection today",
+    "capability": "REJECTION_STATUS",
+    "filters": {
+      "time_range": "{TIME}",
+      "pipeline_stage": [
+        "REJECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any internship rejection",
+    "capability": "REJECTION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "REJECTED"
+      ],
+      "role": "{ROLE_TYPE}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which rejection came last",
+    "capability": "REJECTION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "REJECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "did i get any offer",
+    "capability": "SELECTION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "location",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any company marked me as selected",
+    "capability": "SELECTION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "location",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any selection today",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "location",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "how many selections do i have",
+    "capability": "SELECTION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "location",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which company selected me last",
+    "capability": "SELECTION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "location",
+      "salary_amount",
+      "last_updated_at",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any fulltime selection",
+    "capability": "SELECTION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ],
+      "role_exclude": "intern"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "location",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any internship selection",
+    "capability": "SELECTION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ],
+      "role": "{ROLE_TYPE}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "location",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "did i attend any interviews",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "what was my last interview",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "last_updated_at",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "did i miss any interview",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "time_range": "{TIME}",
+      "action_required": true
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which company gave me interview",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "how many interviews have i attended",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "how many assessments are pending",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "action_required": true
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "did i write any test",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "did i miss any deadline",
+    "capability": "DEADLINE_STATUS",
+    "filters": {
+      "time_range": "{TIME}",
+      "action_required": true
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline"
+    ]
+  },
+  {
+    "question": "any test i forgot to attend",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "time_range": "{TIME}",
+      "action_required": true
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline"
+    ]
+  },
+  {
+    "question": "which company sent assessments",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any internship assessments",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "role": "{ROLE_TYPE}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "pending things",
+    "capability": "SUMMARY",
+    "filters": {
+      "action_required": true
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage",
+      "event_date",
+      "deadline",
+      "details"
+    ]
+  },
+  {
+    "question": "any assessments pending",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "action_required": true
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any assessments still result pending",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "did i finish accenture interview",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "company": "{COMPANY_NAME}",
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "pipeline_stage",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any assessments from company",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "company": "{COMPANY_NAME}",
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "pipeline_stage",
+      "action_required",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any interviews this week",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "whats the latest job that came in",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": "OPPORTUNITY_FOUND"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role"
+    ]
+  },{
+    "question": "whats the status of skypoint",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "company": "{COMPANY_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "pipeline_stage",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "details",
+      "min_experience_years",
+      "max_experience_years"
+    ]
+  },
+  {
+    "question": "how many job openings have i found so far",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "company",
+      "salary_amount",
+      "salary_period",
+      "location",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show me all the roles i discovered recently",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "are there any internship opportunities available right now",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "role": "intern"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show me job openings in bangalore",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "location": "{LOCATION_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "list remote job opportunities",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "location": "{LOCATION_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which companies are currently offering roles to apply",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show opportunities that have deadlines coming up soon",
+    "capability": "DEADLINE_STATUS",
+    "filters": {
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "deadline",
+      "event_date",
+      "details",
+      "pipeline_stage"
+    ]
+  },
+  {
+    "question": "show me opportunities related to role",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "role": "{ROLE_TYPE}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which roles have i added this week",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which companies have not responded yet after i completed my part",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "action_required": false,
+      "pipeline_stage": [
+        "APPLIED",
+        "ASSESSMENT",
+        "INTERVIEW"
+      ]
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "pipeline_stage"
+    ]
+  },
+  {
+    "question": "show applications where i am waiting for the result",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "action_required": false,
+      "pipeline_stage": [
+        "APPLIED",
+        "ASSESSMENT",
+        "INTERVIEW",
+        "SHORTLISTED"
+      ]
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "pipeline_stage",
+      "deadline",
+      "details"
+    ]
+  },
+  {
+    "question": "how many decisions are still pending",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "action_required": false,
+      "pipeline_stage": [
+        "APPLIED",
+        "ASSESSMENT",
+        "INTERVIEW",
+        "SHORTLISTED"
+      ]
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "role",
+      "company",
+      "pipeline_stage",
+      "event_date",
+      "deadline",
+      "details"
+    ]
+  },
+  {
+    "question": "list interviews where i am waiting for feedback",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show assessments i have completed but results are not declared",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "are there any interviews where the outcome is still pending",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show items that do not require any action from me",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "action_required": false
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage",
+      "event_date",
+      "deadline",
+      "details"
+    ]
+  },
+  {
+    "question": "how many assessments do i currently have",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "company",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show me all the assessments i need to complete",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "action_required": true
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "are there any assessments scheduled today",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "do i have any assessments tomorrow",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show assessments with deadlines coming up soon",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "deadline",
+      "event_date",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "did i miss any assessment deadlines",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "action_required": true,
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "deadline",
+      "event_date",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show assessments where i completed my part and waiting for result",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ],
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "give me complete details of all my assessments",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which assessments were updated recently",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "how many interviews do i currently have in my pipeline",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "action_required": true
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "company",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show me all the interviews that are coming up",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "have i attended any interviews recently",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "time_range": "{TIME}",
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "do i have any interviews scheduled today",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "are there interviews planned for tomorrow",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show interviews where i am waiting for feedback",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "list interviews that still require action from me",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "action_required": true
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "give me full details of my upcoming interviews",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show interviews that were updated this week",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "are there any interviews with confirmed event dates",
+    "capability": "INTERVIEW_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "INTERVIEW"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "event_date",
+      "deadline",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "how many companies have selected me so far",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show me all the roles where i got selected",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which company recently selected me",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "have i been selected anywhere this week",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show complete details of my selected applications",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which roles did i finally clear",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show companies that confirmed my selection",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "list selected opportunities with their important dates",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "SELECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "details",
+      "event_date",
+      "deadline",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "how many times have i been rejected so far",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "REJECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show me all the roles where i got rejected",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "REJECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which companies rejected my application recently",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "REJECTED"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "have i faced any rejection this week",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "REJECTED"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "company",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show rejection details for my applications",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "REJECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which roles did i not clear in the final round",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "REJECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show companies that declined my application",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "REJECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "give me complete information about my rejected roles",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "REJECTED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "details",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show me roles offered by company",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "company": "{COMPANY_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "are there any openings at company",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "company": "{COMPANY_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show job opportunities in location",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "location": "{LOCATION_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "what roles are available in location",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "location": "{LOCATION_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show me role related openings",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "role": "{ROLE_TYPE}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "are there any role positions available right now",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "role": "{ROLE_TYPE}",
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show role roles in location",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "role": "{ROLE_TYPE}",
+      "location": "{LOCATION_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "list openings from company in location",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "company": "{COMPANY_NAME}",
+      "location": "{LOCATION_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which companies are hiring for role",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "role": "{ROLE_TYPE}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show me opportunities from company for role in location",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "company": "{COMPANY_NAME}",
+      "role": "{ROLE_TYPE}",
+      "location": "{LOCATION_NAME}"
+    },
+    "group_by": null,
+    "projection": [
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any new job opportunities recently",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any jobs in last 5 days",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "show me jobs i havent applied to yet",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any opportunities waiting for my action",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "action_required": true
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "deadline",
+      "event_date",
+      "details",
+      "pipeline_stage"
+    ]
+  },
+  {
+    "question": "any jobs that i need to act upon",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "action_required": true
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "deadline",
+      "event_date",
+      "pipeline_stage",
+      "details"
+    ]
+  },
+  {
+    "question": "show company jobs",
+    "capability": "OPPORTUNITY",
+    "filters": {
+      "company": "{COMPANY_NAME}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "role",
+      "location",
+      "pipeline_stage",
+      "deadline",
+      "event_date",
+      "salary_amount",
+      "salary_period"
+    ]
+  },
+  {
+    "question": "give me full job overview",
+    "capability": "SUMMARY",
+    "filters": {},
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage",
+      "salary_amount",
+      "salary_period",
+      "location",
+      "min_experience_years",
+      "max_experience_years"
+    ]
+  },
+  {
+    "question": "summarise job status",
+    "capability": "SUMMARY",
+    "filters": {},
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage",
+      "salary_amount",
+      "salary_period",
+      "location",
+      "min_experience_years",
+      "max_experience_years"
+    ]
+  },
+  {
+    "question": "whats the situation of jobs",
+    "capability": "SUMMARY",
+    "filters": {},
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage",
+      "salary_amount",
+      "salary_period",
+      "location",
+      "min_experience_years",
+      "max_experience_years"
+    ]
+  },
+  {
+    "question": "anything important pending today",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "time_range": "{TIME}",
+      "action_required": true
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "deadline",
+      "event_date",
+      "pipeline_stage",
+      "details"
+    ]
+  },
+  {
+    "question": "anything i need to complete",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "action_required": true
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "deadline",
+      "event_date",
+      "pipeline_stage",
+      "details"
+    ]
+  },
+  {
+    "question": "show me pending actions",
+    "capability": "ASSESSMENT_STATUS",
+    "filters": {
+      "action_required": true
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "deadline",
+      "event_date",
+      "pipeline_stage",
+      "details"
+    ]
+  },
+  {
+    "question": "overall job pipeline status",
+    "capability": "SUMMARY",
+    "filters": {},
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage",
+      "salary_amount",
+      "salary_period",
+      "location",
+      "min_experience_years",
+      "max_experience_years"
+    ]
+  },
+  {
+    "question": "jobs still waiting for result",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "action_required": false
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "pipeline_stage"
+    ]
+  },
+  {
+    "question": "jobs still untouched",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "location",
+      "salary_amount",
+      "salary_period",
+      "min_experience_years",
+      "max_experience_years",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "jobs that moved forward",
+    "capability": "APPLICATION_STATUS",
+    "filters": {
+      "pipeline_stage": [
+        "ASSESSMENT",
+        "SHORTLISTED",
+        "INTERVIEW",
+        "SELECTED"
+      ]
+    },
+    "group_by": "pipeline_stage",
+    "projection": [
+      "company",
+      "role",
+      "deadline",
+      "details",
+      "event_date",
+      "pipeline_stage"
+    ]
+  },
+  {
+    "question": "overall linkedin status",
+    "capability": "LINKEDIN_STATUS",
+    "filters": {},
+    "group_by": "interaction_type",
+    "projection": [
+      "person_name",
+      "person_title",
+      "person_company",
+      "interaction_type"
+    ]
+  },
+  {
+    "question": "which company most contacted in linkedin",
+    "capability": "LINKEDIN_STATUS",
+    "filters": {},
+    "group_by": "person_company",
+    "projection": [
+      "person_name",
+      "person_title",
+      "person_company",
+      "interaction_type"
+    ]
+  },
+  {
+    "question": "how many recruiters contacted me",
+    "capability": "LINKEDIN_STATUS",
+    "filters": {
+      "interaction_type": [
+        "RECRUITER_MESSAGE"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "person_name",
+      "person_title",
+      "person_company"
+    ]
+  },
+  {
+    "question": "any linkedin conversation still active",
+    "capability": "LINKEDIN_STATUS",
+    "filters": {
+      "interaction_type": [
+        "MESSAGE_RECIEVED",
+        "RECRUITER_MESSAGE"
+      ],
+      "requires_follow_up": true
+    },
+    "group_by": null,
+    "projection": [
+      "person_name",
+      "person_title",
+      "person_company"
+    ]
+  },
+  {
+    "question": "any recruiter contacted last week",
+    "capability": "LINKEDIN_STATUS",
+    "filters": {
+      "interaction_type": [
+        "MESSAGE_RECIEVED"
+      ],
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "person_name",
+      "person_title",
+      "person_company"
+    ]
+  },
+  {
+    "question": "anyone messaged from company",
+    "capability": "LINKEDIN_STATUS",
+    "filters": {
+      "person_company": "{COMPANY_NAME}",
+      "interaction_type": [
+        "MESSAGE_RECIEVED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "person_name",
+      "person_title"
+    ]
+  },
+  {
+    "question": "any message from company",
+    "capability": "LINKEDIN_STATUS",
+    "filters": {
+      "person_company": "{COMPANY_NAME}",
+      "interaction_type": [
+        "MESSAGE_RECIEVED"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "person_name",
+      "person_title"
+    ]
+  },
+  {
+    "question": "any linkedin message today",
+    "capability": "LINKEDIN_STATUS",
+    "filters": {
+      "time_range": "{TIME}"
+    },
+    "group_by": null,
+    "projection": [
+      "person_name",
+      "person_title",
+      "person_company"
+    ]
+  },
+  {
+    "question": "any jobs where salary mentioned",
+    "capability": "SALARY_STATUS",
+    "filters": {
+      "salary_exist": true,
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount"
+    ]
+  },{
+    "question": "any paid internships",
+    "capability": "SALARY_STATUS",
+    "filters": {
+      "salary_exist": true,
+      "role": "{ROLE_TYPE}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any stipend based roles",
+    "capability": "SALARY_STATUS",
+    "filters": {
+      "salary_period": "{PERIOD}",
+      "salary_exist": true,
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any role without salary info",
+    "capability": "SALARY_STATUS",
+    "filters": {
+      "salary_exist": false,
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any monthly salary roles",
+    "capability": "SALARY_STATUS",
+    "filters": {
+      "salary_period": "{PERIOD}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any salary around 35k per month",
+    "capability": "SALARY_STATUS",
+    "filters": {
+      "salary_amount": "{SALARY}",
+      "salary_period": "{PERIOD}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any salary more than 20k per month",
+    "capability": "SALARY_STATUS",
+    "filters": {
+      "salary_amount": "{SALARY}",
+      "salary_period": "{PERIOD}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any salary less than 40k per month",
+    "capability": "SALARY_STATUS",
+    "filters": {
+      "salary_amount": "{SALARY}",
+      "salary_period": "{PERIOD}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any jobs offering 30k stipend",
+    "capability": "SALARY_STATUS",
+    "filters": {
+      "Salary_amount": "{SALARY}",
+      "salary_period": "{PERIOD}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any jobs with salary 12lpa",
+    "capability": "SALARY_STATUS",
+    "filters": {
+      "Salary_amount": "{SALARY}",
+      "salary_period": "{PERIOD}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "highest salary so far",
+    "capability": "SALARY_STATUS",
+    "filters": {},
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount"
+    ]
+  },
+  {
+    "question": "what is the maximum stipend so far",
+    "capability": "SALARY_STATUS",
+    "filters": {
+      "salary_period": "{PERIOD}"
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "salary_amount"
+    ]
+  },
+  {
+    "question": "any work from home jobs",
+    "capability": "LOCATION_STATUS",
+    "filters": {
+      "location": "{LOCATION_NAME}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any hybrid jobs",
+    "capability": "LOCATION_STATUS",
+    "filters": {
+      "location": "{LOCATION_NAME}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "any jobs in location",
+    "capability": "LOCATION_STATUS",
+    "filters": {
+      "location": "{LOCATION_NAME}",
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  },
+  {
+    "question": "which is the common location",
+    "capability": "LOCATION_STATUS",
+    "filters": {},
+    "group_by": "location",
+    "projection": [
+      "company",
+      "role",
+      "location"
+    ]
+  },
+  {
+    "question": "any jobs where location not mentioned",
+    "capability": "LOCATION_STATUS",
+    "filters": {
+      "location_exist": false,
+      "pipeline_stage": [
+        "OPPORTUNITY_FOUND"
+      ]
+    },
+    "group_by": null,
+    "projection": [
+      "company",
+      "role",
+      "gmail_message_id"
+    ]
+  }
+]

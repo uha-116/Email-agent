@@ -1,3 +1,4 @@
+#llm_gemini.py
 import os
 import re
 import time
@@ -63,7 +64,26 @@ def call_llm(prompt: str, model: str, temp: float = 0) -> str:
         # ERROR FROM WORKER
         # --------------------------------------------------
         if output.startswith("ERROR::"):
-            raise Exception(output)
+
+            error_type = output.split("::")[1]
+
+            if error_type == "NetworkError":
+                raise NetworkError("LLM network error")
+
+            elif error_type == "RateLimitError":
+                raise RateLimitError("Rate limit hit")
+
+            elif error_type == "AuthenticationError":
+                raise AuthenticationError("Invalid API key")
+
+            elif error_type == "ServiceUnavailableError":
+                raise ServiceUnavailableError("Service unavailable")
+
+            elif error_type == "NetworkDownError":
+                raise NetworkDownError("Network down")
+
+            else:
+                raise LLMAPIError(output)
 
         # --------------------------------------------------
         # EMPTY RESPONSE CHECK
@@ -76,6 +96,12 @@ def call_llm(prompt: str, model: str, temp: float = 0) -> str:
     except subprocess.TimeoutExpired as e:
         print("⏱ TIMEOUT → killing worker (safe isolation)")
         raise LLMAPIError("LLM request timed out")
+
+    # -----------------------------
+    # 🔥 ADD THIS BLOCK (CRITICAL)
+    # -----------------------------
+    except (NetworkError, RateLimitError, AuthenticationError, ServiceUnavailableError, NetworkDownError):
+        raise
 
     except Exception as e:
 

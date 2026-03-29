@@ -13,10 +13,8 @@ VALID_PIPELINE_STAGES = {
 
 VALID_INTERACTIONS = {
     "CONNECTION_ACCEPTED",
-    "RECRUITER_MESSAGE",
     "MESSAGE_RECEIVED",
-    "CONNECTION_REQUEST",
-    "CONNECTION_ACTIVITY"   # 🔥 added (your sample uses this)
+    "CONNECTION_REQUEST"  # 🔥 added (your sample uses this)
 }
 
 VALID_SALARY_PERIOD = {"year", "month", "hour"}

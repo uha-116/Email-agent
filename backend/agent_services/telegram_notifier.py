@@ -2,7 +2,7 @@ import requests
 import os
 from dotenv import load_dotenv
 
-from error_handling import NetworkError, RateLimitError
+from backend.error_handling import NetworkError, RateLimitError
 
 load_dotenv()
 

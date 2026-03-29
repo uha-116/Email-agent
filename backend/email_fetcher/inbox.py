@@ -215,12 +215,12 @@ STRONG_JOB_KEYWORDS = [
     "ctc", "messaged", "accepted", "connect", "messages",
     "opportunity", "intern", "confirmation", "submit",
     "stipend", "opportunities", "technical assessment",
-    "moving forward", "proceeding"
+    "moving forward", "proceeding","awaits","await","Linkedin"
 ]
 
 MEDIUM_JOB_KEYWORDS = [
     "schedule", "complete", "interest", "congratulations",
-    "awaits", "eligible", "await", "duration"
+    "eligible", "duration","messaged","response"
 ]
 
 NEGATION = [

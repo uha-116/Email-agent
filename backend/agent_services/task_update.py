@@ -3,20 +3,29 @@ import os
 import time
 import requests
 from dotenv import load_dotenv
-from db_storage.db_connection import get_db_connection
-from error_handling import DBConnectionError, NetworkError, NetworkDownError
+from backend.db_storage.db_connection import get_db_connection
+from backend.error_handling import DBConnectionError, NetworkError, NetworkDownError
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("BOT_CHAT_ID")
 
-# --------------------------------------------------
-# Queue to hold pending questions
-# --------------------------------------------------
-
 pending_questions = []
 last_update_id = None
+ACTIVE_SESSION = False
+
+
+# --------------------------------------------------
+# 🔥 ACK TELEGRAM CALLBACK
+# --------------------------------------------------
+
+def answer_callback(callback_query_id):
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
+        requests.post(url, json={"callback_query_id": callback_query_id}, timeout=5)
+    except Exception as e:
+        print(f"⚠️ Failed to ACK callback: {e}")
 
 
 # --------------------------------------------------
@@ -43,10 +52,10 @@ def fetch_pending_confirmations():
         WHERE action_required = TRUE
         AND pipeline_stage IN ('ASSESSMENT','INTERVIEW')
         AND (
-            deadline <= CURRENT_DATE
-            OR event_date::date <= CURRENT_DATE
+            (deadline IS NOT NULL AND deadline >= CURRENT_DATE)
+            OR (event_date IS NOT NULL AND event_date::date >= CURRENT_DATE)
         )
-        ORDER BY company, deadline DESC NULLS LAST, event_date DESC NULLS LAST;
+        ORDER BY company,pipeline_stage, deadline DESC NULLS LAST, event_date DESC NULLS LAST;
         """
 
         cur.execute(query)
@@ -72,9 +81,14 @@ def fetch_pending_confirmations():
         except:
             pass
 
+    global ACTIVE_SESSION
+
     if not rows:
         print("No pending confirmations.")
+        ACTIVE_SESSION = False
         return
+
+    ACTIVE_SESSION = True
 
     print("\nLoaded pending confirmations\n")
 
@@ -97,8 +111,11 @@ def fetch_pending_confirmations():
 
 def send_next_question():
 
+    global ACTIVE_SESSION
+
     if not pending_questions:
         print("All confirmations completed.")
+        ACTIVE_SESSION = False   # 🔥 STOP SESSION
         return
 
     question = pending_questions[0]
@@ -161,22 +178,63 @@ def send_confirmation(company, stage, opportunity_id, deadline=None, event_date=
 
 
 # --------------------------------------------------
+# Update Telegram message after click
+# --------------------------------------------------
+
+def update_message_after_click(callback_query, choice):
+
+    try:
+        chat_id = callback_query["message"]["chat"]["id"]
+        message_id = callback_query["message"]["message_id"]
+
+        options = ["YES", "NO", "IRRELEVANT"]
+        keyboard_row = []
+
+        for opt in options:
+            if opt == choice:
+                text = f"✔ {opt}"
+            else:
+                text = opt
+
+            keyboard_row.append({
+                "text": text,
+                "callback_data": "done"
+            })
+
+        keyboard = {
+            "inline_keyboard": [keyboard_row]
+        }
+
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageReplyMarkup"
+
+        payload = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "reply_markup": keyboard
+        }
+
+        requests.post(url, json=payload, timeout=5)
+
+    except Exception as e:
+        print(f"⚠️ Failed to update message UI: {e}")
+
+
+# --------------------------------------------------
 # Handle user response
 # --------------------------------------------------
 
-def handle_response(callback_data):
+def handle_response(callback_data, callback_query):
 
     if not pending_questions:
         return
 
-    current_question = pending_questions.pop(0)
+    # 🔥 ACK telegram immediately
+    answer_callback(callback_query["id"])
 
-    company = current_question["company"]
-    stage = current_question["stage"]
-
-    print("\nUser clicked:", callback_data)
-    print("Company:", company)
-    print("Stage:", stage)
+    # 🔥 Safety for invalid callback
+    if "_" not in callback_data:
+        print("⚠️ Invalid callback data")
+        return
 
     conn = None
     cur = None
@@ -185,7 +243,42 @@ def handle_response(callback_data):
         conn = get_db_connection()
         cur = conn.cursor()
 
+        # 🔥 Extract ID
+        opportunity_id = int(callback_data.split("_")[-1])
+
+        # 🔥 Fetch correct record
+        cur.execute(
+            """
+            SELECT company, pipeline_stage
+            FROM opportunities
+            WHERE id = %s
+            """,
+            (opportunity_id,)
+        )
+
+        row = cur.fetchone()
+
+        if not row:
+            print("⚠️ Opportunity not found or already handled")
+            return
+
+        company, stage = row
+
+        # 🔥 Remove from queue safely
+        pending_questions[:] = [
+            q for q in pending_questions if q["id"] != opportunity_id
+        ]
+
+        print("\nUser clicked:", callback_data)
+        print("Company:", company)
+        print("Stage:", stage)
+
+        # ---------------------------
+        # YES
+        # ---------------------------
         if callback_data.startswith("confirm_"):
+
+            update_message_after_click(callback_query, "YES")
 
             cur.execute(
                 """
@@ -199,9 +292,18 @@ def handle_response(callback_data):
                 (company, stage)
             )
 
+            if cur.rowcount == 0:
+                print("⚠️ Duplicate click ignored — already processed")
+                return
+
             print("✔ Marked all matching opportunities as completed")
 
+        # ---------------------------
+        # IRRELEVANT
+        # ---------------------------
         elif callback_data.startswith("remove_"):
+
+            update_message_after_click(callback_query, "IRRELEVANT")
 
             cur.execute(
                 """
@@ -213,9 +315,18 @@ def handle_response(callback_data):
                 (company, stage)
             )
 
+            if cur.rowcount == 0:
+                print("⚠️ Already removed / duplicate click")
+                return
+
             print("✖ Removed incorrect opportunity records")
 
+        # ---------------------------
+        # NO (your logic preserved)
+        # ---------------------------
         elif callback_data.startswith("pending_"):
+
+            update_message_after_click(callback_query, "NO")
 
             cur.execute(
                 """
@@ -227,6 +338,10 @@ def handle_response(callback_data):
                 """,
                 (company, stage)
             )
+
+            if cur.rowcount == 0:
+                print("⚠️ Duplicate NO click ignored")
+                return
 
             print("⏳ Still pending — timestamp refreshed")
 
@@ -265,7 +380,7 @@ def listen_for_responses():
 
     print("\nListening for Telegram responses...\n")
 
-    while True:
+    while ACTIVE_SESSION:
 
         try:
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
@@ -298,7 +413,7 @@ def listen_for_responses():
             if "callback_query" in update:
                 try:
                     cb_data = update["callback_query"]["data"]
-                    handle_response(cb_data)
+                    handle_response(cb_data, update["callback_query"])
                 except Exception as e:
                     print(f"❌ Callback handling error: {e}")
 
@@ -312,5 +427,4 @@ def listen_for_responses():
 if __name__ == "__main__":
 
     fetch_pending_confirmations()
-
     listen_for_responses()

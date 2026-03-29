@@ -7,6 +7,7 @@ from backend.email_analyser.email_analyser import analyze_email_batch
 
 from backend.db_storage.db_persistor import persist_email_payload, email_already_processed
 from backend.db_storage.db_connection import get_db_connection
+from backend.agent_services.notification_engine import notification_handle
 
 from backend.error_handling import (
     BaseAppError,
@@ -23,6 +24,24 @@ from backend.error_handling import (
     NetworkDownError
 )
 
+import os
+
+LOCK_FILE = "pipeline.lock"
+
+def acquire_lock():
+    if os.path.exists(LOCK_FILE):
+        print("⚠️ Another instance running. Exiting...")
+        return False
+
+    with open(LOCK_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+    return True
+
+
+def release_lock():
+    if os.path.exists(LOCK_FILE):
+        os.remove(LOCK_FILE)
 
 # =========================================================
 # START DATE
@@ -169,8 +188,7 @@ def main():
             metadata = service.users().messages().get(
                 userId="me",
                 id=message_id,
-                format="metadata",
-                metadataHeaders=["Date"]
+                format="metadata"
             ).execute()
 
         except Exception as e:
@@ -231,7 +249,7 @@ def main():
         # --------------------------------------------------
         try:
             email_data = get_clean_email_text(service, message_id)
-            print(email_data["raw_text"][:100])
+            print(email_data["raw_text"][:200])
 
         except (MessageNotFoundError, Base64DecodeError) as e:
             print(f"⚠️ Skipping {message_id} → {e}")
@@ -310,11 +328,20 @@ def main():
             continue
 
 
-        # 🟡 OTHER TRANSIENT ERRORS
-        except (NetworkError, ServiceUnavailableError) as e:
+        # -----------------------------
+        # 🟡 NETWORK ERROR → SKIP
+        # -----------------------------
+        except NetworkError as e:
             print(f"⚠️ LLM TEMP ERROR → skipping batch: {e}")
             batch.clear()
             continue
+
+        # -----------------------------
+        # 🔴 SERVICE DOWN → STOP
+        # -----------------------------
+        except ServiceUnavailableError as e:
+            print(f"🛑 LLM SERVICE DOWN → stopping pipeline: {e}")
+            return
 
         # 🔥 FATAL AUTH ERROR → STOP
         except AuthenticationError as e:
@@ -332,7 +359,7 @@ def main():
             batch.clear()
             continue
 
-        time.sleep(2)
+        time.sleep(1)
 
         # --------------------------------------------------
         # STORE RESULTS
@@ -357,7 +384,7 @@ def main():
 
             try:
 
-                persist_email_payload(
+                result=persist_email_payload(
                     payload=payload,
                     gmail_message_id=message_id,
                     received_at=email_data["received_at"],
@@ -365,6 +392,14 @@ def main():
                 )
 
                 print(f"✅ Stored {message_id}")
+
+            # 🔥 Trigger notification
+
+                try:
+                    notification_handle(result)
+                except Exception as e:
+                    print(f"⚠️ Notification failed: {e}")
+
 
             except DBConnectionError as e:
                 print(f"🛑 DB ERROR during insert: {e.user_message}")
@@ -378,9 +413,6 @@ def main():
                 print(f"⚠️ Skipping {message_id} → DB insert failed: {e}")
                 continue
 
-            finally:
-                if conn:
-                    conn.close()
 
         batch.clear()
 
@@ -388,4 +420,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if not acquire_lock():
+        exit()
+
+    try:
+        main()
+    except Exception as e:
+        print(f"🛑 CRON FATAL ERROR → {e}")
+    finally:
+        release_lock()

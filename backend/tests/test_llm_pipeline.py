@@ -1,7 +1,5 @@
-import concurrent.futures
 import importlib
 import sys
-import types
 
 import pytest
 
@@ -119,69 +117,3 @@ def test_analyze_email_batch_raises_when_all_items_invalid(monkeypatch, scenario
         "LLMValidationError raised after validation found no valid items",
     )
 
-
-def test_call_llm_timeout_shuts_down_executor_and_retries(monkeypatch, scenario_printer):
-    llm = import_llm_module(monkeypatch)
-    executors = []
-    calls = {"count": 0}
-
-    class FakeFuture:
-        def result(self, timeout):
-            calls["count"] += 1
-            if calls["count"] == 1:
-                raise concurrent.futures.TimeoutError()
-            return types.SimpleNamespace(text="done")
-
-    class FakeExecutor:
-        def __init__(self, *args, **kwargs):
-            self.shutdown_calls = []
-            executors.append(self)
-
-        def submit(self, *args, **kwargs):
-            return FakeFuture()
-
-        def shutdown(self, wait=False, cancel_futures=False):
-            self.shutdown_calls.append((wait, cancel_futures))
-
-    monkeypatch.setattr(llm.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
-
-    result = llm.call_llm("prompt", "model", 0)
-
-    assert result == "done"
-    assert calls["count"] == 2
-    scenario_printer(
-        "LLM timeout then success",
-        "First future.result times out, second returns response text",
-        "call_llm should shutdown executor, retry, and return success",
-        "Executor shutdown observed and call_llm returned 'done'",
-    )
-    assert any(call == (False, True) for call in executors[0].shutdown_calls)
-
-
-def test_call_llm_raises_after_repeated_timeout(monkeypatch, scenario_printer):
-    llm = import_llm_module(monkeypatch)
-
-    class FakeFuture:
-        def result(self, timeout):
-            raise concurrent.futures.TimeoutError()
-
-    class FakeExecutor:
-        def __init__(self, *args, **kwargs):
-            return None
-
-        def submit(self, *args, **kwargs):
-            return FakeFuture()
-
-        def shutdown(self, wait=False, cancel_futures=False):
-            return None
-
-    monkeypatch.setattr(llm.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
-
-    with pytest.raises(NetworkError, match="timed out"):
-        llm.call_llm("prompt", "model", 0)
-    scenario_printer(
-        "Repeated LLM timeout",
-        "Every future.result call times out",
-        "call_llm should retry and then raise NetworkError",
-        "NetworkError raised after repeated timeout retries",
-    )

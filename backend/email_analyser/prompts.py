@@ -222,7 +222,7 @@ LINKEDIN_NETWORKING FORMAT
     "person_name": "...",
     "person_title": "...",
     "person_company": "...",
-    "interaction_type": "CONNECTION_ACCEPTED" | "RECRUITER_MESSAGE",
+    "interaction_type": "CONNECTION_ACCEPTED" | "MESSAGE_RECEIVED"  "CONNECTION_REQUEST",
     "requires_follow_up": true | false
   }
 }
@@ -373,7 +373,7 @@ linkedin_events(
     person_name TEXT,
     person_title TEXT,
     person_company TEXT,
-    interaction_type TEXT, -- CONNECTION_REQUEST | CONNECTION_ACCEPTED | RECRUITER_MESSAGE
+    interaction_type TEXT, -- CONNECTION_REQUEST | CONNECTION_ACCEPTED | MESSAGE_RECIEVED
     requires_follow_up BOOLEAN
 )
 

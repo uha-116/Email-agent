@@ -81,10 +81,17 @@ def analyze_email_batch(gemini_input: list) -> list:
     # --------------------------------------------------
     raw_response = call_llm(prompt, EMAIL_EXTRACTION_MODEL, 0)
 
+    print("Raw_Response",raw_response)
+    print('\n\n')
+
+
     # --------------------------------------------------
     # STEP 3: JSON EXTRACTION
     # --------------------------------------------------
     payload = extract_json(raw_response)
+    
+    print("Extracted",payload)
+
 
     # --------------------------------------------------
     # STEP 4: SCHEMA VALIDATION (PARTIAL SAFE)

@@ -1,9 +1,6 @@
-import json
+from dotenv import load_dotenv
+import os
 
-# load your file
-with open("backend/data/data.json", "r", encoding="utf-8") as f:
-    data = json.load(f)
+load_dotenv()
 
-# write pretty format
-with open("backend/data/data_pretty.json", "w", encoding="utf-8") as f:
-    json.dump(data, f, indent=4, ensure_ascii=False)
+print("ENV VALUE:", os.getenv("GMAIL_TOKEN"))

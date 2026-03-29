@@ -1,0 +1,39 @@
+{
+
+  "person_scope": {
+    "patterns": [
+       "father", "dad", "my dad", "my father",
+    "mother", "mom", "my mom", "my mother",
+    "brother", "my brother",
+    "sister", "my sister",
+    "friend", "my friend", "friends",
+    "colleague", "my colleague",
+    "someone else", "others", "other people",
+    "their", "his", "her"
+    ],
+    "message": "Sorry! I can only track your job applications and not other individuals."
+  },
+
+  "history_queries": {
+    "patterns": [
+      "after", "before",
+    "after interview", "after interviews",
+    "after assessment", "after test",
+    "before interview", "before assessment",
+
+    "next stage", "previous stage",
+    "what happened after",
+    "what happened before",
+
+    "after that", "before that",
+    "later stage", "earlier stage",
+
+    "sequence", "timeline", "flow",
+    "progress after",
+    "step after",
+    "stage after",
+    "stage before"
+    ],
+    "message": "Sorry! I can only track the latest stage, not full history."
+  }
+}

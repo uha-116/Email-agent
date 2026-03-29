@@ -1,17 +1,30 @@
-# Virtual environment
-venv/
+# Environment
+.env
+.env.*
 
-# Python cache
+# Python
 __pycache__/
 *.pyc
-*.pyo
 
-# Environment variables / secrets
-.env
-data/
-config/
+# Virtual env
+venv/
+env/
 
-# OS junk
-Thumbs.db
+# Logs
+*.log
+
+# OS
 .DS_Store
 
+
+# 🔥 Gmail / OAuth credentials (deep path)
+backend/config/credentials.json
+backend/config/token.json
+
+# Ignore data artifacts
+backend/data/data_pretty.json
+backend/data/databackup.json
+backend/data/questions.txt
+
+# Ignore DB snapshots
+backend/data/db_snapshot/

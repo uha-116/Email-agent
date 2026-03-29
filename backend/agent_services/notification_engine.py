@@ -114,18 +114,6 @@ def notification_handle(result):
             continue
 
         # --------------------------------------------------
-        # Opportunities
-        # --------------------------------------------------
-        if stage == "OPPORTUNITY_FOUND":
-
-            count = len(pipeline_records["OPPORTUNITY_FOUND"])
-
-            messages.append(
-                f"You got {count} new opportunities.\n"
-                f"Check your email for more details."
-            )
-
-        # --------------------------------------------------
         # Assessments
         # --------------------------------------------------
         elif stage == "ASSESSMENT":
@@ -213,17 +201,3 @@ def notification_handle(result):
             print(f"❌ Unexpected Telegram error: {e}")
 
 
-# --------------------------------------------------
-# Test
-# --------------------------------------------------
-
-result = {
-    'email_id': 497,
-    'opportunity_changes': {
-        'INSERT': [796, 797, 798, 618, 747, 534],
-        'UPDATE': [655, 713]
-    },
-    'linkedin_event_id': None
-}
-
-notification_handle(result)
