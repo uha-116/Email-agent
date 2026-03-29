@@ -23,4 +23,4 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           BOT_CHAT_ID: ${{ secrets.BOT_CHAT_ID }}
-        run: python backend/db_storage/task_update.py
+        run: python -m backend.agent_services.task_update
