@@ -47,7 +47,7 @@ def call_llm(prompt: str, model: str, max_tokens:int,temp:float=0) -> str:
         print("⏳ Spawning LLM worker...")
 
         result = subprocess.run(
-            [sys.executable, WORKER_PATH, model, str(max_tokens),str(temp)],
+            [sys.executable, WORKER_PATH, model, str(temp),str(max_tokens)],
             input=prompt,
             capture_output=True,
             text=True,

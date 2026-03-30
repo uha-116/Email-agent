@@ -228,7 +228,7 @@ NEGATION = [
     "webinar", "newsletter", "event", "survey",
     "r/btechtards", "comments", "upvotes", "prizes",
     "competition", "certificates", "news", "courses",
-    "post", "suhas", "register", "like"
+    "post", "suhas", "register", "like","competitions"
 ]
 
 

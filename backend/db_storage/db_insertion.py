@@ -254,7 +254,7 @@ def main():
         # --------------------------------------------------
         try:
             email_data = get_clean_email_text(service, message_id)
-            print(email_data["raw_text"][:200])
+            print(email_data["raw_text"][:100])
 
         except (MessageNotFoundError, Base64DecodeError) as e:
             print(f"⚠️ Skipping {message_id} → {e}")

@@ -392,7 +392,7 @@ def listen_for_responses():
     start_time = time.time()
 
     while ACTIVE_SESSION:
-        if time.time() - start_time > 600:  # 10 minutes max
+        if time.time() - start_time > 900:  # 10 minutes max
             print("⏳ Cron timeout reached, exiting...")
             break
 
