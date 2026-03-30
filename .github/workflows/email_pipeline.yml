@@ -24,4 +24,5 @@ jobs:
           EMAIL_EXTRACTION_MODEL: ${{ secrets.EMAIL_EXTRACTION_MODEL }}
           GMAIL_TOKEN: ${{ secrets.GMAIL_TOKEN }}
           GMAIL_CREDENTIALS: ${{ secrets.GMAIL_CREDENTIALS }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }} 
         run: python -m backend.db_storage.db_insertion

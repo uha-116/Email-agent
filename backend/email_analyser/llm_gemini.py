@@ -31,7 +31,7 @@ if not API_KEY:
 # 🔥 GENERIC LLM CALLER (SUBPROCESS VERSION)
 # --------------------------------------------------
 @retry(max_attempts=1)
-def call_llm(prompt: str, model: str, temp: float = 0) -> str:
+def call_llm(prompt: str, model: str, temp: float = 0,max_tokens:int) -> str:
 
     TIMEOUT_SECONDS = 60
 
@@ -47,7 +47,7 @@ def call_llm(prompt: str, model: str, temp: float = 0) -> str:
         print("⏳ Spawning LLM worker...")
 
         result = subprocess.run(
-            [sys.executable, WORKER_PATH, model, str(temp)],
+            [sys.executable, WORKER_PATH, model, str(temp),str(max_tokens)],
             input=prompt,
             capture_output=True,
             text=True,

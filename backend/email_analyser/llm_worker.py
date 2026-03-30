@@ -17,6 +17,7 @@ def run():
     prompt = sys.stdin.read()
     model = sys.argv[1]
     temp = float(sys.argv[2])
+    max_tokens = int(sys.argv[3])
 
     client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
@@ -29,7 +30,7 @@ def run():
                 contents=prompt,
                 config={
                     "temperature": temp,
-                    "max_output_tokens": 10000
+                    "max_output_tokens": max_tokens
                 }
             )
 
