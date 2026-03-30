@@ -79,7 +79,7 @@ def analyze_email_batch(gemini_input: list) -> list:
     # --------------------------------------------------
     # STEP 2: CALL LLM
     # --------------------------------------------------
-    raw_response = call_llm(prompt, EMAIL_EXTRACTION_MODEL, 0,6000)
+    raw_response = call_llm(prompt, EMAIL_EXTRACTION_MODEL,6000,0)
 
     print("Raw_Response",raw_response)
     print('\n\n')

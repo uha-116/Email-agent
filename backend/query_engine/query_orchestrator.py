@@ -146,7 +146,7 @@ def _handle_llm_sql(question):
     try:
         prompt = SQL_GENERATION_PROMPT + "\n\nUSER QUESTION:\n" + question
 
-        sql = call_llm(prompt, MODEL_SQL, 0,1000)
+        sql = call_llm(prompt, MODEL_SQL, 1000,0)
 
         print("\nGenerated SQL (LLM):\n", sql)
 
@@ -198,7 +198,7 @@ def _generate_explanation(question, count_sql, list_sql, records):
     )
 
     try:
-        return call_llm(prompt, MODEL_EXPLAIN, 0,8000)
+        return call_llm(prompt, MODEL_EXPLAIN,8000,0)
     except Exception as e:
         return "LLM explanation failed: " + str(e)
 

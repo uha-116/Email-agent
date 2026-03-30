@@ -27,6 +27,6 @@ def validate_sql(user_question: str, count_sql: str, list_sql: str):
         + sql
     )
 
-    raw_response = call_llm(prompt, SQL_VALIDATION_MODEL, 0,200)
+    raw_response = call_llm(prompt, SQL_VALIDATION_MODEL,200,0)
 
     return json.loads(raw_response)
