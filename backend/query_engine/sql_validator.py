@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from backend.email_analyser.llm_gemini import call_llm
 from backend.email_analyser.prompts import SQL_VALIDATION_PROMPT
 
+
 load_dotenv()
 
 SQL_VALIDATION_MODEL = os.getenv("SQL_VALIDATION_MODEL")

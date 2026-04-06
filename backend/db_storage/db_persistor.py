@@ -46,7 +46,7 @@ def persist_email_payload(
             "INSERT": [],
             "UPDATE": []
         },
-        "linkedin_event_id": None
+        "linkedin_event_id": []
     }
 
     conn = get_db_connection()
@@ -62,7 +62,7 @@ def persist_email_payload(
             return result
 
         # --------------------------------------------------
-        # 1️⃣ ALWAYS INSERT EMAIL (INCLUDING IGNORE)
+        # 1️⃣ Insert into emails table (Except IGNORE)
         # --------------------------------------------------
         email_id = insert_email(
             cur=cur,
@@ -127,7 +127,7 @@ def persist_email_payload(
                         "requires_follow_up", False
                     )
                 )
-                result["linkedin_event_id"] = linkedin_event_id
+                result["linkedin_event_id"].append(linkedin_event_id)
 
         conn.commit()
         return result

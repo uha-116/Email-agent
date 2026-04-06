@@ -15,6 +15,7 @@ from backend.email_analyser.prompts import (
 
 from backend.error_handling import BaseAppError
 
+
 # ---------------------------------------------------------
 # ENV
 # ---------------------------------------------------------

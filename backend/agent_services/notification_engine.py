@@ -1,4 +1,3 @@
-# notification_engine.py
 from backend.db_storage.db_connection import get_db_connection
 from backend.agent_services.telegram_notifier import send_telegram
 from backend.error_handling import DBConnectionError, NetworkError, NetworkDownError
@@ -9,9 +8,11 @@ def notification_handle(result):
     insert_ids = result["opportunity_changes"]["INSERT"]
     update_ids = result["opportunity_changes"]["UPDATE"]
 
+    linkedin_ids = result.get("linkedin_event_id", [])
+
     all_ids = insert_ids + update_ids
 
-    if not all_ids:
+    if not all_ids and not linkedin_ids:
         return
 
     conn = None
@@ -21,40 +22,53 @@ def notification_handle(result):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        query = """
-        SELECT
-            o.company,
-            o.role,
-            o.pipeline_stage,
-            o.deadline,
-            o.event_date,
-            e.gmail_message_id
-        FROM opportunities o
-        JOIN emails e
-            ON o.email_id = e.id
-        WHERE o.id = ANY(%s);
-        """
+        # --------------------------------------------------
+        # JOB PIPELINE QUERY
+        # --------------------------------------------------
+        rows = []
+        if all_ids:
+            query = """
+            SELECT
+                o.id,
+                o.company,
+                o.role,
+                o.pipeline_stage,
+                o.deadline,
+                o.event_date,
+                e.gmail_message_id
+            FROM opportunities o
+            JOIN emails e
+                ON o.email_id = e.id
+            WHERE o.id = ANY(%s);
+            """
+            cur.execute(query, (all_ids,))
+            rows = cur.fetchall()
 
-        cur.execute(query, (all_ids,))
-        rows = cur.fetchall()
+        # --------------------------------------------------
+        # LINKEDIN EVENTS QUERY (🔥 FIXED)
+        # --------------------------------------------------
+        linkedin_rows = []
+        if linkedin_ids:
+            linkedin_query = """
+            SELECT
+                id,
+                person_name,
+                person_company,
+                interaction_type
+            FROM linkedin_events
+            WHERE id = ANY(%s);
+            """
+            cur.execute(linkedin_query, (linkedin_ids,))
+            linkedin_rows = cur.fetchall()
 
-    # --------------------------------------------------
-    # EXPECTED DB ERRORS
-    # --------------------------------------------------
     except (DBConnectionError, NetworkError, NetworkDownError) as e:
         print(f"❌ DB error in notification_engine: {e}")
         return
 
-    # --------------------------------------------------
-    # UNKNOWN ERRORS
-    # --------------------------------------------------
     except Exception as e:
         print(f"❌ Unexpected DB error: {e}")
         return
 
-    # --------------------------------------------------
-    # CLEANUP (ALWAYS RUNS)
-    # --------------------------------------------------
     finally:
         try:
             if cur:
@@ -68,10 +82,7 @@ def notification_handle(result):
         except Exception:
             pass
 
-    # --------------------------------------------------
-    # EMPTY RESULT SAFETY
-    # --------------------------------------------------
-    if not rows:
+    if not rows and not linkedin_rows:
         return
 
     # --------------------------------------------------
@@ -79,8 +90,11 @@ def notification_handle(result):
     # --------------------------------------------------
 
     pipeline_records = {}
+    ids_to_update = []  # 🔥 FIX
 
-    for company, role, stage, deadline, event_date, gmail_id in rows:
+    for opp_id, company, role, stage, deadline, event_date, gmail_id in rows:
+
+        ids_to_update.append(opp_id)
 
         if stage not in pipeline_records:
             pipeline_records[stage] = []
@@ -99,7 +113,6 @@ def notification_handle(result):
 
     messages = []
 
-    # Priority order
     stage_priority = [
         "SELECTED",
         "INTERVIEW",
@@ -113,9 +126,6 @@ def notification_handle(result):
         if stage not in pipeline_records:
             continue
 
-        # --------------------------------------------------
-        # Assessments
-        # --------------------------------------------------
         elif stage == "ASSESSMENT":
 
             for record in pipeline_records["ASSESSMENT"]:
@@ -128,9 +138,6 @@ def notification_handle(result):
                     f"For more details: {link}"
                 )
 
-        # --------------------------------------------------
-        # Interviews
-        # --------------------------------------------------
         elif stage == "INTERVIEW":
 
             for record in pipeline_records["INTERVIEW"]:
@@ -143,9 +150,6 @@ def notification_handle(result):
                     f"For more details: {link}"
                 )
 
-        # --------------------------------------------------
-        # Selected
-        # --------------------------------------------------
         elif stage == "SELECTED":
 
             for record in pipeline_records["SELECTED"]:
@@ -157,9 +161,6 @@ def notification_handle(result):
                     f"For more details: {link}"
                 )
 
-        # --------------------------------------------------
-        # Rejected
-        # --------------------------------------------------
         elif stage == "REJECTED":
 
             for record in pipeline_records["REJECTED"]:
@@ -172,6 +173,32 @@ def notification_handle(result):
                 )
 
     # --------------------------------------------------
+    # 🔥 LINKEDIN NOTIFICATIONS (UPDATED AS PER YOUR DESIGN)
+    # --------------------------------------------------
+
+    for _, person_name, person_company, interaction_type in linkedin_rows:
+
+        # Prefer company over person (your design)
+        if person_company:
+            base = f"{person_company} member"
+        else:
+            base = person_name or "LinkedIn user"
+
+        if interaction_type == "MESSAGE_RECEIVED":
+            msg = f"💬 Message from {base}"
+
+        elif interaction_type == "CONNECTION_REQUEST":
+            msg = f"🤝 Connection request from {base}"
+
+        elif interaction_type == "CONNECTION_ACCEPTED":
+            msg = f"✅ Connection accepted by {base}"
+
+        else:
+            msg = f"🔔 LinkedIn update from {base}"
+
+        messages.append(msg)
+
+    # --------------------------------------------------
     # Final Notification
     # --------------------------------------------------
 
@@ -179,17 +206,33 @@ def notification_handle(result):
 
         final_message = "\n\n".join(messages)
 
-        # 🔥 Telegram message limit protection
         if len(final_message) > 4000:
             final_message = final_message[:4000] + "\n...truncated"
 
         try:
             send_telegram(final_message)
 
+            # 🔥 UPDATE last_notified_at (ONLY for opportunities)
+            if ids_to_update:
+                conn = get_db_connection()
+                cur = conn.cursor()
+
+                cur.execute(
+                    """
+                    UPDATE opportunities
+                    SET last_notified_at = CURRENT_TIMESTAMP
+                    WHERE id = ANY(%s)
+                    """,
+                    (ids_to_update,)
+                )
+
+                conn.commit()
+                cur.close()
+                conn.close()
+
         except NetworkError as e:
             print(f"⚠️ Telegram failed (1st try): {e}")
 
-            # 🔁 Retry once
             try:
                 send_telegram(final_message)
                 print("✅ Telegram retry success")
@@ -199,5 +242,3 @@ def notification_handle(result):
 
         except Exception as e:
             print(f"❌ Unexpected Telegram error: {e}")
-
-

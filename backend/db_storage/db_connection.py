@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 from backend.error_handling import (
     retry,
     DBConnectionError,
-    NetworkDownError   # 🔥 ADDED
+    NetworkDownError ,
+    RetryConfig# 🔥 ADDED
 )
 
 # --------------------------------------------------
@@ -20,7 +21,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # GET DB CONNECTION (WITH RETRY)
 # --------------------------------------------------
 
-@retry(max_attempts=2)
+@retry(config=RetryConfig.BACKGROUND)
 def get_db_connection():
     """
     Establish PostgreSQL connection.

@@ -16,7 +16,8 @@ from backend.error_handling import (
     NetworkDownError,
     TokenLoadError,
     GmailServiceBuildError,
-    is_internet_available
+    is_internet_available,
+    RetryConfig
 )
 
 # =========================================================
@@ -56,7 +57,7 @@ CREDENTIALS_PATH = os.path.join(BASE_DIR, "config", "credentials.json")
 # MAIN FUNCTION
 # =========================================================
 
-@retry(max_attempts=2)
+@retry(config=RetryConfig.BACKGROUND)
 def get_gmail_service():
 
     # 🔥 FAIL FAST CHECK

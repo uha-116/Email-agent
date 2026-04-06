@@ -2,6 +2,7 @@
 
 import json
 from datetime import date, datetime
+from difflib import SequenceMatcher
 
 
 
@@ -28,6 +29,16 @@ def get_stage_priority(stage: str) -> int:
 # 🧠 INSERT vs UPDATE DECISION
 # =========================================================
 
+def similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+
+def is_intern(role: str | None) -> bool:
+    if not role:
+        return False
+    return "intern" in role.lower()
+
+
 def decide_insert_or_update(
     cur,
     *,
@@ -40,49 +51,138 @@ def decide_insert_or_update(
         ("INSERT", None)
         ("UPDATE", opportunity_id)
     """
+
     # --------------------------------------------------
-    # 🟢 CASE 1: OPPORTUNITY_FOUND (SPECIAL HANDLING)
+    # 🔹 STEP 1: FETCH ALL COMPANY RECORDS
     # --------------------------------------------------
-    if new_stage == "OPPORTUNITY_FOUND":
-
-        if role:
-            cur.execute(
-                """
-                SELECT id
-                FROM opportunities
-                WHERE LOWER(company) = LOWER(%s)
-                AND LOWER(role) = LOWER(%s)
-                AND pipeline_stage = %s;
-                """,
-                (company, role, new_stage)
-            )
-
-            row = cur.fetchone()
-
-            if row:
-                return "UPDATE", row[0]
-
-        # If no role OR no match → INSERT
-        return "INSERT", None
-
-    # Look for existing record for same company + stage
     cur.execute(
         """
-        SELECT id
+        SELECT id, role, pipeline_stage, last_updated_at
         FROM opportunities
         WHERE LOWER(company) = LOWER(%s)
-        AND pipeline_stage = %s;
         """,
-        (company, new_stage)
+        (company,)
     )
 
-    row = cur.fetchone()
+    rows = cur.fetchall()
 
-    if not row:
+    # --------------------------------------------------
+    # 🔹 STEP 2: NO RECORDS → INSERT
+    # --------------------------------------------------
+    if not rows:
         return "INSERT", None
 
-    # Existing record found → update it
-    return "UPDATE", row[0]
+    # Convert to structured list
+    candidates = []
+    for r in rows:
+        candidates.append({
+            "id": r[0],
+            "role": r[1],
+            "stage": r[2],
+            "last_updated_at": r[3]
+        })
+
+    new_stage_priority = get_stage_priority(new_stage)
+
+    # --------------------------------------------------
+    # 🔹 STEP 3: ONLY ONE RECORD
+    # --------------------------------------------------
+    if len(candidates) == 1:
+        record = candidates[0]
+
+        if role and record["role"]:
+            sim = similarity(role, record["role"])
+
+            if sim >= 0.6 and is_intern(role) == is_intern(record["role"]):
+                return "UPDATE", record["id"]
+            else:
+                return "INSERT", None
+
+        return "UPDATE", record["id"]
+
+    # --------------------------------------------------
+    # 🔹 STEP 4: ROLE-BASED MATCHING
+    # --------------------------------------------------
+    role_matches = []
+
+    if role:
+        for rec in candidates:
+            if not rec["role"]:
+                continue
+
+            sim = similarity(role, rec["role"])
+
+            # 🔴 Strong mismatch → skip
+            if sim < 0.5:
+                continue
+
+            # 🔴 Intern mismatch → skip
+            if is_intern(role) != is_intern(rec["role"]):
+                continue
+
+            existing_stage_priority = get_stage_priority(rec["stage"])
+
+            # 🔴 Prevent downgrade
+            if existing_stage_priority > new_stage_priority:
+                continue
+
+            stage_diff = abs(new_stage_priority - existing_stage_priority)
+
+            role_matches.append({
+                "id": rec["id"],
+                "similarity": sim,
+                "stage_diff": stage_diff,
+                "last_updated_at": rec["last_updated_at"]
+            })
+
+    # --------------------------------------------------
+    # 🔹 STEP 5: IF ROLE MATCHES FOUND
+    # --------------------------------------------------
+    if role_matches:
+        role_matches.sort(
+            key=lambda x: (
+                -x["similarity"],             # highest similarity first
+                x["stage_diff"],              # closest stage
+                -x["last_updated_at"].timestamp() 
+            )
+        )
+
+        return "UPDATE", role_matches[0]["id"]
+
+    # --------------------------------------------------
+    # 🔹 STEP 6: STAGE FALLBACK
+    # --------------------------------------------------
+    stage_matches = []
+
+    for rec in candidates:
+        existing_stage_priority = get_stage_priority(rec["stage"])
+
+        # Only lower or equal stages
+        if existing_stage_priority > new_stage_priority:
+            continue
+
+        stage_diff = abs(new_stage_priority - existing_stage_priority)
+
+        stage_matches.append({
+            "id": rec["id"],
+            "stage_diff": stage_diff,
+            "last_updated_at": rec["last_updated_at"]
+        })
+
+    if stage_matches:
+        stage_matches.sort(
+            key=lambda x: (
+                x["stage_diff"],
+                -x["last_updated_at"].timestamp() if x["last_updated_at"] else 0
+            )
+        )
+
+        return "UPDATE", stage_matches[0]["id"]
+
+    # --------------------------------------------------
+    # 🔹 STEP 7: FINAL FALLBACK → INSERT
+    # --------------------------------------------------
+    return "INSERT", None
 
 
 # =========================================================
@@ -200,50 +300,91 @@ def insert_or_update_opportunity(
             """
             UPDATE opportunities
             SET
-                role =
+                -- 🔒 ROLE (only if NULL)
+                role = COALESCE(role, %s),
+
+                -- 📍 LOCATION
+                location =
                     CASE
-                        WHEN LENGTH(COALESCE(%s,'')) > LENGTH(COALESCE(role,''))
-                        THEN %s
-                        ELSE role
+                        WHEN %s IS NOT NULL THEN %s
+                        ELSE location
                     END,
 
-                location = COALESCE(location, %s),
+                -- 💰 SALARY
+                salary_amount =
+                    CASE
+                        WHEN %s IS NOT NULL THEN %s
+                        ELSE salary_amount
+                    END,
 
-                salary_amount = COALESCE(salary_amount, %s),
-                salary_period = COALESCE(salary_period, %s),
+                salary_period =
+                    CASE
+                        WHEN %s IS NOT NULL THEN %s
+                        ELSE salary_period
+                    END,
 
-                min_experience_years = COALESCE(min_experience_years, %s),
-                max_experience_years = COALESCE(max_experience_years, %s),
+                -- 📊 EXPERIENCE
+                min_experience_years =
+                    CASE
+                        WHEN %s IS NOT NULL THEN %s
+                        ELSE min_experience_years
+                    END,
 
+                max_experience_years =
+                    CASE
+                        WHEN %s IS NOT NULL THEN %s
+                        ELSE max_experience_years
+                    END,
+
+                -- 🚀 PIPELINE
                 pipeline_stage = %s,
 
-                action_required = opportunities.action_required OR %s,
+                -- 🔥 FIXED lifecycle
+                action_required = %s,
 
-                deadline = COALESCE(%s, deadline),
+                -- 🔥 IMPORTANT: ALWAYS OVERWRITE
+                deadline = %s,
+                event_date = %s,
 
-                event_date = COALESCE(%s, event_date),
+                -- 🕒 LAST UPDATED
+                last_updated_at = %s,
+                response_locked = FALSE
 
-                last_updated_at = GREATEST(last_updated_at, %s)
 
             WHERE id = %s;
             """,
             (
+                # role
                 role,
-                role,
-                location,
-                salary_amount,
-                salary_period,
-                min_experience_years,
-                max_experience_years,
+
+                # location
+                location, location,
+
+                # salary
+                salary_amount, salary_amount,
+                salary_period, salary_period,
+
+                # experience
+                min_experience_years, min_experience_years,
+                max_experience_years, max_experience_years,
+
+                # pipeline
                 pipeline_stage,
+
+                # action_required
                 action_required,
+
+                # 🔥 ALWAYS overwrite
                 deadline,
                 event_date,
+
+                # last updated
                 received_at,
+
+                # id
                 record_id
             )
         )
-
         print("Updating the record", record_id)
         return record_id,"UPDATE"
 

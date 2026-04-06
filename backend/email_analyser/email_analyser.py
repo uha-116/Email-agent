@@ -64,60 +64,48 @@ def extract_json(text: str):
 # MAIN ANALYSIS (WITH RETRY + VALIDATION)
 # =========================================================
 
-@retry(max_attempts=2)
-def analyze_email_batch(gemini_input: list) -> list:
 
-    # --------------------------------------------------
+def analyze_email_batch(gemini_input: list):
+
     # STEP 1: BUILD PROMPT
-    # --------------------------------------------------
     prompt = (
         FINAL_ANALYSIS_PROMPT
         + "\n\nEMAILS:\n"
         + json.dumps(gemini_input, indent=2)
     )
 
-    # --------------------------------------------------
     # STEP 2: CALL LLM
-    # --------------------------------------------------
-    raw_response = call_llm(prompt, EMAIL_EXTRACTION_MODEL,6000,0)
+    raw_response = call_llm(
+        prompt,
+        EMAIL_EXTRACTION_MODEL,
+        6000,
+        0
+    )
 
-    print("Raw_Response",raw_response)
+    print("Raw_Response", raw_response)
     print('\n\n')
 
-
-    # --------------------------------------------------
     # STEP 3: JSON EXTRACTION
-    # --------------------------------------------------
     payload = extract_json(raw_response)
-    
-    print("Extracted",payload)
+    print("Extracted", payload)
 
-
-    # --------------------------------------------------
-    # STEP 4: SCHEMA VALIDATION (PARTIAL SAFE)
-    # --------------------------------------------------
+    # STEP 4: SCHEMA VALIDATION
     try:
         valid_items, invalid_items = validate_schema(payload)
-        print("Valid_items",valid_items)
-        print("Invalid items",invalid_items)
+
+        print("Valid_items", valid_items)
+        print("Invalid items", invalid_items)
 
     except LLMValidationError as e:
-        # This means FULL STRUCTURE is broken (not per-item)
+        # 🔴 FULL VALIDATION FAILURE → propagate
         raise LLMValidationError(f"Batch validation failed: {e}")
 
-    # --------------------------------------------------
     # STEP 5: LOG INVALID ITEMS
-    # --------------------------------------------------
     for bad in invalid_items:
         item = bad.get("item", {})
         idx = item.get("index", "unknown")
 
-        print(f"⚠️ Skipping LLM output at index {idx} → {bad['error']}")
+        print(f"⚠️ Proceesing Unvalid LLM output at index {idx} → {bad['error']}")
 
-    # --------------------------------------------------
-    # STEP 6: RETURN ONLY VALID ITEMS
-    # --------------------------------------------------
-    if not valid_items:
-        raise LLMValidationError("All items failed validation")
-
-    return valid_items
+    # ✅ STEP 6: RETURN BOTH
+    return valid_items, invalid_items

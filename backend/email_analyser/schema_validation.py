@@ -215,5 +215,9 @@ def validate_schema(data):
                 "item": item,
                 "error": str(e)
             })
+    
+    if not valid_items and invalid_items:
+    # 🔥 all items failed → treat as full validation failure
+        raise LLMValidationError("All items failed validation")
 
     return valid_items, invalid_items

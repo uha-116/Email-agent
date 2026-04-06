@@ -5,8 +5,11 @@ import requests
 from dotenv import load_dotenv
 from backend.db_storage.db_connection import get_db_connection
 from backend.error_handling import DBConnectionError, NetworkError, NetworkDownError
+from datetime import datetime
 
 load_dotenv()
+
+
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("BOT_CHAT_ID")
@@ -16,9 +19,87 @@ last_update_id = None
 ACTIVE_SESSION = False
 
 
-# --------------------------------------------------
-# 🔥 ACK TELEGRAM CALLBACK
-# --------------------------------------------------
+
+def build_gmail_link(gmail_message_id):
+    if not gmail_message_id:
+        return None
+    return f"https://mail.google.com/mail/u/0/#all/{gmail_message_id}"
+
+def build_reminder_text(company, stage, deadline=None, event_date=None):
+
+    now = datetime.now()
+    label = "assessment" if stage == "ASSESSMENT" else "interview"
+
+    # --------------------------------------------------
+    # ASSESSMENT
+    # --------------------------------------------------
+    if stage == "ASSESSMENT":
+
+        if deadline:
+            try:
+                days = (deadline.date() - now.date()).days
+            except:
+                days = None  # ✅ FIX
+
+            if days is None:
+                return f"⚠️ Please check {company} {label} details"
+
+            if days > 1:
+                return f"⏳ {days} days left for {company} {label}"
+
+            elif days == 1:
+                return f"⚠️ Tomorrow is deadline for {company} {label}"
+
+            elif days == 0:
+                return f"🔥 Today is deadline for {company} {label}"
+
+            else:  # days < 0
+                return f"🚨 You missed {company} {label} deadline!"
+
+        else:
+            return f"⚠️ Please complete {company} {label} as soon as possible"
+
+    # --------------------------------------------------
+    # INTERVIEW
+    # --------------------------------------------------
+    elif stage == "INTERVIEW":
+
+        if event_date:
+            try:
+                if isinstance(event_date, datetime):
+                    parsed_date = event_date
+                else:
+                    parsed_date = datetime.fromisoformat(str(event_date))
+
+                date_str = parsed_date.strftime('%Y-%m-%d')
+                days = (parsed_date.date() - now.date()).days
+
+            except:
+                days = None  # ✅ FIX
+                date_str = str(event_date)
+
+            if days is None:
+                return f"⚠️ Interview scheduled with {company} (check details)"
+
+            if days > 1:
+                return f"📅 Interview with {company} on {date_str}"
+
+            elif days == 1:
+                return f"⚠️ Interview tomorrow with {company} on {date_str}"
+
+            elif days == 0:
+                return f"🔥 Interview TODAY with {company} on {date_str}"
+
+            else:  # days < 0
+                return f"🚨 You missed interview with {company} on {date_str}"
+
+        else:
+            return f"⚠️ Interview scheduled with {company} (date not available)"
+
+    # --------------------------------------------------
+    # FALLBACK
+    # --------------------------------------------------
+    return f"⚠️ Please check update for {company}"
 
 def answer_callback(callback_query_id):
     try:
@@ -47,8 +128,15 @@ def fetch_pending_confirmations():
             o.company,
             o.pipeline_stage,
             o.deadline,
-            o.event_date
+            o.event_date,
+            e.gmail_message_id   -- ✅ FROM emails table
+
         FROM opportunities o
+
+        -- ✅ JOIN emails table
+        LEFT JOIN emails e
+        ON o.email_id = e.id
+
         WHERE o.action_required = TRUE
 
         -- ❌ REMOVED response_locked condition
@@ -71,15 +159,41 @@ def fetch_pending_confirmations():
 
         -- ✅ Date filtering
         AND (
+            -- Case 1: deadline exists
             (o.deadline IS NOT NULL AND o.deadline >= CURRENT_DATE)
-            OR (o.event_date IS NOT NULL AND o.event_date::date >= CURRENT_DATE)
+
+            OR
+
+            -- Case 2: event date exists
+            (o.event_date IS NOT NULL AND o.event_date::date >= CURRENT_DATE)
+
+            OR
+
+            -- Case 3: NO deadline → use last_updated_at window
+            (
+                o.deadline IS NULL
+                AND o.event_date IS NULL
+                AND o.last_updated_at >= NOW() - INTERVAL '3 days'
+            )
+
+            or 
+            --Case 4: Missed deadline/event_date within last 1 day 
+            (
+                (
+                    o.deadline IS NOT NULL AND o.deadline < CURRENT_DATE AND o.deadline >= CURRENT_DATE - INTERVAL '1 day'
+                )
+                OR
+                (
+                    o.event_date IS NOT NULL AND o.event_date::date < CURRENT_DATE AND o.event_date::date >= CURRENT_DATE - INTERVAL '1 day'
+                )
+            )
         )
 
         ORDER BY
             o.company,
             o.pipeline_stage,
-            o.deadline DESC NULLS LAST,
-            o.event_date DESC NULLS LAST;
+            o.deadline ASC NULLS LAST,
+            o.event_date ASC NULLS LAST;
         """
 
         cur.execute(query)
@@ -113,17 +227,19 @@ def fetch_pending_confirmations():
         return
 
     ACTIVE_SESSION = True
+    pending_questions.clear() 
 
     print("\nLoaded pending confirmations\n")
 
-    for opp_id, company, stage, deadline, event_date in rows:
+    for opp_id, company, stage, deadline, event_date,gmail_id in rows:
 
         pending_questions.append({
             "id": opp_id,
             "company": company,
             "stage": stage,
             "deadline": deadline,
-            "event_date": event_date
+            "event_date": event_date,
+            "gmail_id": gmail_id
         })
 
     send_next_question()
@@ -149,7 +265,8 @@ def send_next_question():
         question["stage"],
         question["id"],
         question["deadline"],
-        question["event_date"]
+        question["event_date"],
+        question["gmail_id"]
     )
 
 
@@ -157,16 +274,41 @@ def send_next_question():
 # Send Telegram confirmation message
 # --------------------------------------------------
 
-def send_confirmation(company, stage, opportunity_id, deadline=None, event_date=None):
+def send_confirmation(company, stage, opportunity_id, deadline=None, event_date=None, gmail_id=None):
 
     if not BOT_TOKEN or not CHAT_ID:
         print("❌ Missing BOT_TOKEN or CHAT_ID")
         return
 
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
+    # -----------------------------
+    # 🔥 1. SEND REMINDER MESSAGE
+    # -----------------------------
+    reminder_text = build_reminder_text(company, stage, deadline, event_date)
+
+    gmail_link = build_gmail_link(gmail_id)
+
+    if gmail_link:
+        reminder_text += f"\n\n🔗 View Email: {gmail_link}"
+
+    try:
+        requests.post(url, json={
+            "chat_id": CHAT_ID,
+            "text": reminder_text
+        }, timeout=5)
+    except Exception as e:
+        print(f"❌ Reminder send failed: {e}")
+
+    # -----------------------------
+    # 🔥 2. ORIGINAL ACTION MESSAGE (UNCHANGED LOGIC)
+    # -----------------------------
     if stage == "ASSESSMENT":
-        text = f"Did you complete {company} assessment?\nDeadline: {deadline}"
+        text = f"Did you complete {company} assessment?"
     elif stage == "INTERVIEW":
-        text = f"Did you attend {company} interview?\nDate: {event_date}"
+        text = f"Did you attend {company} interview?"
+    else:
+        text = f"Did you complete the process for {company}?"
 
     keyboard = {
         "inline_keyboard": [
@@ -184,7 +326,7 @@ def send_confirmation(company, stage, opportunity_id, deadline=None, event_date=
         "reply_markup": keyboard
     }
 
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    time.sleep(0.5) # Small delay to ensure reminder is sent first
 
     try:
         response = requests.post(url, json=payload, timeout=5)
@@ -194,7 +336,6 @@ def send_confirmation(company, stage, opportunity_id, deadline=None, event_date=
 
         print(f"Question sent for opportunity {opportunity_id}, message_id={message_id}")
 
-        # 🔥 Store notification + update last_notified_at
         conn = get_db_connection()
         cur = conn.cursor()
 
@@ -222,7 +363,6 @@ def send_confirmation(company, stage, opportunity_id, deadline=None, event_date=
 
     except Exception as e:
         print(f"❌ Telegram error: {e}")
-
 
 # --------------------------------------------------
 # Update Telegram message after click
@@ -348,8 +488,7 @@ def handle_response(callback_data, callback_query):
             cur.execute(
                 """
                 UPDATE opportunities
-                SET last_notified_at = CURRENT_TIMESTAMP,
-                    last_updated_at = CURRENT_TIMESTAMP
+                SET last_notified_at = CURRENT_TIMESTAMP
                 WHERE id = %s
                 """,
                 (opportunity_id,)
@@ -375,6 +514,10 @@ def handle_response(callback_data, callback_query):
             cur.close()
         if conn:
             conn.close()
+
+    # ✅ REMOVE CURRENT QUESTION FROM QUEUE
+    if pending_questions:
+        pending_questions.pop(0)
 
     send_next_question()
 
@@ -430,5 +573,8 @@ def listen_for_responses():
 
 if __name__ == "__main__":
 
-    fetch_pending_confirmations()
-    listen_for_responses()
+    try:
+        fetch_pending_confirmations()
+        listen_for_responses()
+    except Exception as e:
+        print(f"❌ Task scheduler fatal error: {e}")

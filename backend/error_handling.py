@@ -1,3 +1,17 @@
+class RetryConfig:
+    BACKGROUND = {
+        "max_attempts": 2,
+        "base_delay": 2,
+        "max_delay": 10
+    }
+
+    FOREGROUND = {
+        "max_attempts": 1,   # 🔥 fail fast
+        "base_delay": 0,
+        "max_delay": 0
+    }
+
+
 # =========================================================
 # BASE ERROR
 # =========================================================
@@ -14,25 +28,62 @@ class BaseAppError(Exception):
 
 
 # =========================================================
-# RETRY DECORATOR
+# RETRY DECORATOR (UPDATED ONLY THIS)
 # =========================================================
 
-def retry(max_attempts=2):
+import time
+import random
+
+def retry(config=None, max_attempts=2, base_delay=2, max_delay=10):
     def wrapper(func):
         def inner(*args, **kwargs):
-            for attempt in range(max_attempts):
+
+            # 🔥 Resolve config
+            if config:
+                max_attempts_local = config.get("max_attempts", 1)
+                base_delay_local = config.get("base_delay", 0)
+                max_delay_local = config.get("max_delay", 0)
+            else:
+                max_attempts_local = max_attempts
+                base_delay_local = base_delay
+                max_delay_local = max_delay
+
+            for attempt in range(max_attempts_local):
                 try:
                     return func(*args, **kwargs)
 
                 except BaseAppError as e:
 
-                    # 🔁 Retryable case
-                    if e.retryable and attempt < max_attempts - 1:
-                        print(f"🔁 Retry {attempt + 1}/{max_attempts} for {func.__name__} → {type(e).__name__}")
+                    # ❌ Non-retryable → fail immediately
+                    if not e.retryable:
+                        print(f"❌ Non-retryable error in {func.__name__} → {type(e).__name__}: {e}")
+                        raise e
+
+                    # ⚡ Fail-fast (foreground)
+                    if max_attempts_local == 1:
+                        print(f"⚡ Fail-fast → {func.__name__} → {type(e).__name__}: {e}")
+                        raise e
+
+                    # 🔁 Retry with backoff
+                    if attempt < max_attempts_local - 1:
+
+                        delay = min(base_delay_local * (2 ** attempt), max_delay_local)
+                        jitter = random.uniform(0, 1)
+
+                        sleep_time = delay + jitter
+
+                        print(
+                            f"🔁 Retry {attempt + 1}/{max_attempts_local} | "
+                            f"{func.__name__} | "
+                            f"{type(e).__name__} | "
+                            f"sleep={sleep_time:.2f}s"
+                        )
+
+                        time.sleep(sleep_time)
                         continue
 
                     # ❌ Final failure
-                    print(f"❌ Failed in {func.__name__} → {type(e).__name__}: {e}")
+                    print(f"❌ Failed after {max_attempts_local} attempts → {type(e).__name__}: {e}")
                     raise e
 
         return inner
@@ -147,6 +198,7 @@ class LLMOutputFormatError(BaseAppError):
     retryable = True
     user_message = "Temporary processing issue. Retrying..."
     show_to_user = False
+
 
 # =========================================================
 # DB ERRORS

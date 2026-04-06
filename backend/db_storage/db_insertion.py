@@ -21,27 +21,22 @@ from backend.error_handling import (
     RateLimitError,
     ServiceUnavailableError,
     AuthenticationError,
-    NetworkDownError
+    NetworkDownError,
+    LLMAPIError
 )
 
 import os
 
-LOCK_FILE = "pipeline.lock"
+metrics = {
+    "emails_seen": 0,
+    "emails_filtered": 0,
+    "emails_processed": 0,
+    "emails_stored": 0,
+    "emails_failed": 0,
+    "llm_calls": 0,
+    "llm_failures": 0
+}
 
-def acquire_lock():
-    if os.path.exists(LOCK_FILE):
-        print("⚠️ Another instance running. Exiting...")
-        return False
-
-    with open(LOCK_FILE, "w") as f:
-        f.write(str(os.getpid()))
-
-    return True
-
-
-def release_lock():
-    if os.path.exists(LOCK_FILE):
-        os.remove(LOCK_FILE)
 
 # =========================================================
 # START DATE
@@ -99,7 +94,6 @@ def is_llm_worthy(label_ids: list[str]):
     if "IMPORTANT" not in label_ids:
         return False
 
-    
 
     return True
 
@@ -177,6 +171,7 @@ def main():
         return
 
     messages = list(reversed(messages))
+    metrics["emails_seen"] = len(messages)
     print(f"📩 Total fetched: {len(messages)} emails\n")
 
     for idx, msg in enumerate(messages, start=1):
@@ -219,6 +214,7 @@ def main():
 
         if not is_llm_worthy(label_ids):
             print("❌ Skipped (label filter)")
+            metrics["emails_filtered"] += 1
             continue
 
         # --------------------------------------------------
@@ -232,6 +228,7 @@ def main():
             cur = conn.cursor()
 
             if email_already_processed(cur, message_id):
+                metrics["emails_filtered"] += 1
                 print("❌ Already processed")
                 continue
 
@@ -257,23 +254,28 @@ def main():
             print(email_data["raw_text"][:100])
 
         except (MessageNotFoundError, Base64DecodeError) as e:
+            metrics["emails_failed"] += 1
             print(f"⚠️ Skipping {message_id} → {e}")
             continue
 
         except GmailFetchError as e:
+            metrics["emails_failed"] += 1
             print(f"⚠️ Skipping {message_id} after retries → {e}")
             continue
         
         # 🔴 HARD NETWORK FAILURE → STOP
         except NetworkDownError as e:
+            metrics["emails_failed"] += 1
             print(f"🛑 NETWORK DOWN: {e.user_message}")
             return
 
         except BaseAppError as e:
+            metrics["emails_failed"] += 1
             print(f"⚠️ Skipping {message_id} → {e}")
             continue
 
         except Exception as e:
+            metrics["emails_failed"] += 1
             print(f"⚠️ Skipping {message_id} → unexpected error: {e}")
             continue
 
@@ -289,7 +291,10 @@ def main():
 
         if job_conf < 0.5:
             print(f"❌ Skipped (low confidence) with {job_conf}")
+            metrics["emails_filtered"] += 1
             continue
+
+        metrics["emails_processed"] += 1
 
         batch.append({
             "message_id": message_id,
@@ -304,68 +309,121 @@ def main():
         # --------------------------------------------------
         print("\n🚀 Sending batch to Gemini\n")
 
+        metrics["llm_calls"] += 1
+        llm_success = False
+        llm_failed = False
+
         try:
-            responses = analyze_email_batch(build_batch(batch))
+            valid_items, invalid_items = analyze_email_batch(build_batch(batch))
+            llm_success = True
 
-            if not isinstance(responses, list):
-                raise ValueError("Invalid response format")
+        # 🔴 FULL FAIL → fallback
+        except (LLMValidationError, LLMOutputFormatError, LLMAPIError) as e:
 
-        except (LLMValidationError, LLMOutputFormatError) as e:
-            print(f"⚠️ LLM output issue → skipping batch: {e}")
-            batch.clear()
-            continue
-        
+            print(f"⚠️ Batch failed → fallback to single: {e}")
+
+            responses = []
+
+            for i, item in enumerate(batch):
+                try:
+                    single_input = [{"index": 0, "text": item["email_data"]["raw_text"]}]
+                    metrics["llm_calls"] += 1
+                    single_valid, _ = analyze_email_batch(single_input)
+
+                    if single_valid:
+                        llm_success = True 
+                        single_valid[0]["index"] = i
+                        responses.extend(single_valid)
+
+                except Exception as inner_e:
+                    print(f"⚠️ Skipping {item['message_id']} → {inner_e}")
+
+            if not responses:
+                batch.clear()
+                continue
+
         # 🔴 HARD NETWORK FAILURE → STOP
         except NetworkDownError as e:
+            
             print(f"🛑 NETWORK DOWN: {e.user_message}")
             return
-        
 
-        # 🔴 HANDLE RATE LIMIT SEPARATELY
+        # 🔴 RATE LIMIT
         except RateLimitError as e:
-
+           
             if "DAILY_QUOTA_EXHAUSTED" in str(e):
                 print("🛑 STOPPING PIPELINE → DAILY QUOTA HIT")
-                return   # 🔥 STOP ENTIRE PIPELINE
+                return
 
             print(f"⚠️ TEMP RATE LIMIT → skipping batch: {e}")
             batch.clear()
             continue
 
-
-        # -----------------------------
         # 🟡 NETWORK ERROR → SKIP
-        # -----------------------------
         except NetworkError as e:
+
+
             print(f"⚠️ LLM TEMP ERROR → skipping batch: {e}")
             batch.clear()
             continue
 
-        # -----------------------------
-        # 🔴 SERVICE DOWN → STOP
-        # -----------------------------
+        # 🔴 SERVICE DOWN
         except ServiceUnavailableError as e:
+            
             print(f"🛑 LLM SERVICE DOWN → stopping pipeline: {e}")
             return
 
-        # 🔥 FATAL AUTH ERROR → STOP
+        # 🔴 AUTH ERROR
         except AuthenticationError as e:
+           
             print(f"🛑 LLM AUTH ERROR: {e.user_message}")
             return
 
-        # 🔥 OTHER APP ERRORS → SKIP
+        # 🔥 OTHER APP ERRORS
         except BaseAppError as e:
             print(f"⚠️ Unexpected LLM error → skipping batch: {e}")
             batch.clear()
             continue
 
         except Exception as e:
+            
             print(f"⚠️ LLM failure → skipping batch: {e}")
             batch.clear()
             continue
 
-        time.sleep(1)
+        # 🟢 SUCCESS / PARTIAL CASE
+        else:
+            # 👇 IMPORTANT
+            if not llm_failed:
+                responses = valid_items
 
+                # 🔁 retry invalid only
+                for bad in invalid_items:
+                    idx = bad["item"].get("index")
+
+                    if idx is None:
+                        continue
+
+                    item = batch[idx]
+
+                    try:
+                        single_input = [{"index": 0, "text": item["email_data"]["raw_text"]}]
+                        metrics["llm_calls"] += 1
+                        single_valid, _ = analyze_email_batch(single_input)
+
+                        if single_valid:
+                            llm_success = True 
+                            single_valid[0]["index"] = idx
+                            responses.append(single_valid[0])
+
+                    except Exception as inner_e:
+                        print(f"⚠️ Retry failed for {item['message_id']} → {inner_e}")
+
+        # --------------------------------------------------
+        # FINAL LLM FAILURE CHECK
+        # --------------------------------------------------
+        if not llm_success:
+            metrics["llm_failures"] += 1
         # --------------------------------------------------
         # STORE RESULTS
         # --------------------------------------------------
@@ -376,6 +434,7 @@ def main():
                 payload = r["payload"]
 
             except Exception:
+                metrics["emails_failed"] += 1
                 print("⚠️ Invalid LLM response structure → skipping")
                 continue
 
@@ -383,8 +442,8 @@ def main():
             message_id = email_item["message_id"]
             email_data = email_item["email_data"]
 
-            if payload.get("email_type") in ("ERROR", "IGNORE"):
-                print(f"⚠️ Skipping {message_id} (LLM ignored)")
+            if payload.get("email_type") == "ERROR":
+                metrics["emails_failed"] += 1
                 continue
 
             try:
@@ -397,6 +456,7 @@ def main():
                 )
 
                 print(f"✅ Stored {message_id}")
+                metrics["emails_stored"] += 1
 
             # 🔥 Trigger notification
 
@@ -407,30 +467,50 @@ def main():
 
 
             except DBConnectionError as e:
+                metrics["emails_failed"] += 1
                 print(f"🛑 DB ERROR during insert: {e.user_message}")
                 return
 
             except NetworkDownError as e:
+                metrics["emails_failed"] += 1
                 print(f"🛑 NETWORK DOWN: {e.user_message}")
                 return
 
             except Exception as e:
+                metrics["emails_failed"] += 1
                 print(f"⚠️ Skipping {message_id} → DB insert failed: {e}")
                 continue
 
 
         batch.clear()
 
-    print("\n🎯 Pipeline completed successfully")
+
+    print("\n📊 METRICS SUMMARY")
+
+    processed = metrics["emails_processed"]
+    stored = metrics["emails_stored"]
+    llm_calls = metrics["llm_calls"]
+    llm_failures = metrics["llm_failures"]
+
+    success_rate = (stored / processed * 100) if processed else 0
+    llm_failure_rate = (llm_failures / llm_calls * 100) if llm_calls else 0
+
+    print(f"Emails Seen: {metrics['emails_seen']}")
+    print(f"Processed: {processed}")
+    print(f"Stored: {stored}")
+    print(f"Failed: {metrics['emails_failed']}")
+
+    print(f"Success Rate: {success_rate:.2f}%")
+    print(f"LLM Failure Rate: {llm_failure_rate:.2f}%")
+
+    print("\n\n🎯 Pipeline completed successfully")
+
+
 
 
 if __name__ == "__main__":
-    if not acquire_lock():
-        exit()
 
     try:
         main()
     except Exception as e:
         print(f"🛑 CRON FATAL ERROR → {e}")
-    finally:
-        release_lock()
