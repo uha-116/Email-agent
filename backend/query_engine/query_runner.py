@@ -3,6 +3,7 @@ import json
 
 from backend.query_engine.intent_to_sql import resolve_user_question
 from backend.db_storage.db_connection import get_db_connection
+from backend.error_handling import BaseAppError, DBConnectionError
 
 
 # ---------------------------------------------------------
@@ -38,22 +39,26 @@ def rows_to_json(cursor, rows):
 # Execute SQL and return JSON records
 # ---------------------------------------------------------
 
+
 def execute_query(sql):
 
     if not sql:
         return None
 
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = None
+    cur = None
 
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
         cur.execute(sql)
 
         rows = cur.fetchall()
 
         results = rows_to_json(cur, rows)
 
-        # ✅ Gmail link logic INSIDE try
+        # Gmail link logic
         for record in results:
             gmail_id = record.get("gmail_message_id")
 
@@ -64,9 +69,19 @@ def execute_query(sql):
 
         return results
 
+    except BaseAppError:
+        # 🔥 already structured → propagate
+        raise
+
+    except Exception as e:
+        # 🔥 wrap ALL SQL/DB errors
+        raise DBConnectionError(f"Query execution failed: {e}")
+
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 # ---------------------------------------------------------
 # Pretty print JSON

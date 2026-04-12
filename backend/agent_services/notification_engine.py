@@ -158,7 +158,7 @@ def notification_handle(result):
 
                 messages.append(
                     f"🎉 Congratulations! Selected by {record['company']}\n"
-                    f"For more details: {link}"
+                    f"Check for Updates: {link}"
                 )
 
         elif stage == "REJECTED":
@@ -169,7 +169,7 @@ def notification_handle(result):
 
                 messages.append(
                     f"Update from {record['company']} Application rejected\n"
-                    f"For more details: {link}"
+                    f"Check for Updates: {link}"
                 )
 
     # --------------------------------------------------

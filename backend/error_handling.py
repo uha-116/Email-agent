@@ -20,7 +20,7 @@ import socket
 
 class BaseAppError(Exception):
     retryable = False
-    user_message = "Something went wrong"
+    user_message = "Something went wrong. Please try again later"
     show_to_user = False
 
     def __init__(self, message=None):
@@ -144,7 +144,7 @@ class GmailServiceBuildError(BaseAppError):
 
 class GmailFetchError(BaseAppError):
     retryable = True
-    user_message = "Unable to fetch emails at the moment. Retrying..."
+    user_message = "Unable to fetch emails at the moment.Please try again later"
     show_to_user = False   # handled silently
 
 
@@ -172,19 +172,19 @@ class RateLimitError(BaseAppError):
 
 class ServiceUnavailableError(BaseAppError):
     retryable = False
-    user_message = "AI service is temporarily unavailable. Please try again later."
+    user_message = "System is busy. Please try again shortly."
     show_to_user = True
 
 
 class AuthenticationError(BaseAppError):
     retryable = False
-    user_message = "AI service authentication failed. Please contact support."
+    user_message = "System Service authentication failed. Please contact support."
     show_to_user = True
 
 
 class LLMAPIError(BaseAppError):
     retryable = True
-    user_message = "Error communicating with AI service. Retrying..."
+    user_message = "Error communicating with System. Retrying..."
     show_to_user = False
 
 
@@ -208,3 +208,12 @@ class DBConnectionError(BaseAppError):
     retryable = True
     user_message = "Database temporarily unavailable. Please try again later."
     show_to_user = False
+
+# =========================================================
+# MODEL / EMBEDDING ERRORS
+# =========================================================
+
+class ModelLoadError(BaseAppError):
+    retryable = False
+    user_message = "System initialization issue. Please try again later."
+    show_to_user = True

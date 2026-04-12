@@ -325,15 +325,12 @@ Return only JSON.
 SQL_GENERATION_PROMPT="""
 You are a deterministic PostgreSQL SQL generation engine.
 
-Your task is to generate ONLY a valid SQL query based on:
+Generate ONLY a valid SQL query using:
 1. USER QUESTION
 2. DATABASE SCHEMA
 
 Return ONLY SQL.
-No explanation.
-No markdown.
-No comments.
-No reasoning.
+No explanation. No markdown. No comments.
 
 --------------------------------------------------
 DATABASE SCHEMA
@@ -342,7 +339,7 @@ emails(
     id BIGINT,
     gmail_message_id TEXT,
     received_at TIMESTAMP,
-    email_type TEXT -- JOB_PIPELINE | LINKEDIN_NETWORKING | IGNORE
+    email_type TEXT
 )
 
 opportunities(
@@ -352,10 +349,10 @@ opportunities(
     role TEXT,
     location TEXT,
     salary_amount NUMERIC,
-    salary_period TEXT, -- year | month | hour
+    salary_period TEXT,
     min_experience_years INT,
     max_experience_years INT,
-    pipeline_stage TEXT, -- OPPORTUNITY_FOUND | APPLIED | SHORTLISTED | ASSESSMENT | INTERVIEW | SELECTED | REJECTED
+    pipeline_stage TEXT,
     action_required BOOLEAN,
     deadline DATE,
     event_date TIMESTAMP,
@@ -373,118 +370,176 @@ linkedin_events(
     person_name TEXT,
     person_title TEXT,
     person_company TEXT,
-    interaction_type TEXT, -- CONNECTION_REQUEST | CONNECTION_ACCEPTED | MESSAGE_RECIEVED
+    interaction_type TEXT,
     requires_follow_up BOOLEAN
 )
 
 --------------------------------------------------
-STRICT RULES
+SYSTEM CAPABILITY
 
-1. Use ONLY columns and tables from schema.
-2. Use ONLY allowed enum values.
-3. Do NOT invent fields.
-4. Always LIMIT 15.
+You ONLY support:
+- Reading job/application data
+- Filtering (company, role, location, stage, deadlines)
+- Returning status, counts, lists
+- It supports only latest current updated stage of the opportunity
+
+DO NOT support:
+- Apply/send/message/call/schedule
+- Advice/suggestions
+- Any external action
+- History of events 
+ex: "What was my previous stage?","show selections after assessments" 
+
+If query:
+- cannot map to schema
+- is vague/unrelated
+- requires unsupported action
+
+Return EXACTLY in JSON format:
+
+{
+  "decision": "NO",
+  "reason": "<short reason (1-2 lines)>"
+}
+
+Rules:
+- Reason must be concise and user-friendly
+- Do NOT generate SQL in this case
+- Do NOT add extra fields
+
+If query is supported:
+- Return ONLY SQL (not JSON)
+
+Do NOT guess or hallucinate.
 
 --------------------------------------------------
-TABLE SELECTION
+CORE RULES
 
-- Job / application queries → opportunities
-- If details required → JOIN opportunity_details ON opportunity_id
-- LinkedIn queries → linkedin_events JOIN emails ON email_id
-
---------------------------------------------------
-PIPELINE RULE (CRITICAL)
-
-- If user explicitly mentions stage → use that stage
-- If NOT mentioned AND query is job listing → enforce:
-  pipeline_stage = 'OPPORTUNITY_FOUND'
+- Use ONLY schema tables/columns
+- Do NOT invent fields
+- Use valid enum values
+- Always use ILIKE for text matching
+- Always LIMIT 15 (except aggregation)
 
 --------------------------------------------------
-JOB LISTING DETECTION
+TABLE USAGE
 
-Treat as job listing when:
-- "jobs", "openings", "roles", "show jobs", "recent jobs"
-- filters like company / role / location / salary / experience
-
-For job listings:
-- DO NOT include deadline or event_date
-- Include:
-  company, role, location, salary_amount, salary_period,
-  min_experience_years, max_experience_years
+- Job/application → opportunities
+- Details → JOIN opportunity_details
+- LinkedIn → linkedin_events JOIN emails
 
 --------------------------------------------------
-HIGHER STAGE RULE
+PIPELINE RULE
 
-If pipeline_stage IN:
-('SHORTLISTED','ASSESSMENT','INTERVIEW','SELECTED','REJECTED')
+- If stage mentioned → use it
+- Else for job listings → pipeline_stage = 'OPPORTUNITY_FOUND'
 
-THEN MUST:
+--------------------------------------------------
+JOB LISTING
+
+Detected by: jobs, openings, roles, etc.
+
+Include ONLY:
+company, role, location,
+salary_amount, salary_period,
+min_experience_years, max_experience_years
+
+Exclude deadline/event_date
+
+--------------------------------------------------
+HIGHER STAGES
+
+If stage IN ('SHORTLISTED','ASSESSMENT','INTERVIEW','SELECTED','REJECTED'):
+
 - JOIN opportunity_details
-- INCLUDE:
-  deadline, event_date, details
+- INCLUDE: deadline, event_date, details
 
 --------------------------------------------------
-GMAIL MESSAGE RULE
+GMAIL RULE
 
-If pipeline_stage = 'OPPORTUNITY_FOUND' in WHERE:
-- MUST include gmail_message_id
-- JOIN emails ON opportunities.email_id = emails.id
+If pipeline_stage = 'OPPORTUNITY_FOUND':
+
+- JOIN emails ON email_id
+- INCLUDE gmail_message_id
 
 --------------------------------------------------
 FILTER RULES
 
-- Only include filters asked by user
-- Do NOT add extra filters
-- company filter applies ONLY to company (NOT role)
-- role is strictly job title
+- Only apply user filters
+- company → company only
+- role → job title only
 
 --------------------------------------------------
-TIME RULE
+SALARY
+
+- Numeric: salary_amount
+- Unit: salary_period
+
+"LPA" → salary_amount >= value * 100000 AND salary_period='year'
+"monthly" → salary_period='month'
+"yearly" → salary_period='year'
+
+--------------------------------------------------
+PIPELINE SEMANTICS
+
+early stage → ('OPPORTUNITY_FOUND','APPLIED')
+in process → ('SHORTLISTED','ASSESSMENT','INTERVIEW')
+completed → ('SELECTED','REJECTED')
+
+--------------------------------------------------
+ACTION REQUIRED
+
+pending/upcoming/to do → action_required = true
+completed/attended → action_required = false
+missed → action_required = true AND COALESCE(deadline,event_date) < CURRENT_DATE
+
+--------------------------------------------------
+TIME
 
 Use CURRENT_DATE
 
-For time filters:
-- upcoming → > CURRENT_DATE
-- past → < CURRENT_DATE
+upcoming → > CURRENT_DATE
+past → < CURRENT_DATE
 
 Use:
-COALESCE(deadline, event_date) or COALESCE(event_date, deadline)
-
-Priority:
-- deadline queries → COALESCE(deadline, event_date)
-- event queries → COALESCE(event_date, deadline)
+COALESCE(deadline,event_date) OR COALESCE(event_date,deadline)
 
 --------------------------------------------------
-PROJECTION RULE (VERY STRICT)
+AGGREGATION
 
-Return MINIMUM columns required.
+If query asks:
+summary/status/how many
 
-REMOVE columns if:
-- used as single-value filter
-- used only for sorting
-
-NEVER repeat same constant value across rows.
-
---------------------------------------------------
-ORDERING RULE
-
-- Job queries → ORDER BY last_updated_at DESC
-- LinkedIn queries → ORDER BY emails.received_at DESC
+- GROUP BY pipeline_stage
+- SELECT pipeline_stage, COUNT(*)
+- NO LIMIT
 
 --------------------------------------------------
-LINKEDIN RULE
+PROJECTION
+
+Return MINIMUM required columns
+
+REMOVE:
+- filter-only columns
+- constant/repeated values
+
+--------------------------------------------------
+ORDERING
+
+- Jobs → ORDER BY last_updated_at DESC
+- LinkedIn → ORDER BY emails.received_at DESC
+
+--------------------------------------------------
+LINKEDIN
 
 - Always JOIN emails
-- Keep projections minimal:
-  person_name, person_title, person_company, interaction_type
+- Minimal fields:
+person_name, person_title, person_company, interaction_type
 
 --------------------------------------------------
-FINAL OUTPUT RULE
+FINAL OUTPUT
 
-Return ONLY SQL query.
-NO explanation.
-NO formatting.
-NO extra text.
+Return ONLY SQL query OR JSON with NO
 
 --------------------------------------------------
 USER QUESTION:
@@ -673,8 +728,7 @@ Format:
 
 Action Text: email_link
 
-Action text must match context:
-Apply / Complete / View / Check / Continue
+Action text is always "Check for details"
 
 Do NOT repeat text.
 

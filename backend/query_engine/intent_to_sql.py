@@ -4,6 +4,9 @@ from backend.query_engine.sbert_model import SBERTMatcher
 from backend.query_engine.filter_extraction import detect_filters
 from backend.query_engine.entity_cache import EntityCache
 from backend.query_engine.sql_builder import build_sql
+from backend.error_handling import BaseAppError, DBConnectionError, LLMAPIError
+
+
 
 
 SIMILARITY_THRESHOLD = 0.6
@@ -48,13 +51,19 @@ def is_placeholder(value):
 # -------------------------------------------------------
 # Initialize components once
 # -------------------------------------------------------
+try:
+    matcher = SBERTMatcher()
 
-matcher = SBERTMatcher()
+    entity_cache = EntityCache()
+    entity_cache.load_from_db()
 
-entity_cache = EntityCache()
-entity_cache.load_from_db()
+    dataset_map = load_dataset()
 
-dataset_map = load_dataset()
+except BaseAppError:
+    raise
+
+except Exception as e:
+    raise DBConnectionError(f"Query engine initialization failed: {e}")
 
 
 # -------------------------------------------------------
@@ -63,78 +72,88 @@ dataset_map = load_dataset()
 
 def resolve_user_question(user_question):
 
-    matches = matcher.find_top_matches(user_question, top_k=1)
+    try:
 
-    top_match = matches[0]
+        matches = matcher.find_top_matches(user_question, top_k=1)
 
-    matched_question = top_match["question"]
-    score = top_match["score"]
+        top_match = matches[0]
 
-    print("\nTop Match:", matched_question)
-    print("Score:", score)
+        matched_question = top_match["question"]
+        score = top_match["score"]
 
-    # ---------------------------------------------------
-    # PATH 1 — SBERT DATASET MATCH
-    # ---------------------------------------------------
-
-    if score >= SIMILARITY_THRESHOLD:
-
-        query_json = dataset_map.get(matched_question)
-
-        if not query_json:
-            print("Dataset mapping missing.")
-            return None
-
-        # Extract dynamic filters from user question
-        dynamic_filters = detect_filters(user_question, entity_cache)
-
-        base_filters = query_json.get("filters", {})
+        print("\nTop Match:", matched_question)
+        print("Score:", score)
 
         # ---------------------------------------------------
-        # Remove placeholder filters from dataset filters
+        # PATH 1 — SBERT DATASET MATCH
         # ---------------------------------------------------
 
-        clean_base_filters = {}
+        if score >= SIMILARITY_THRESHOLD:
 
-        for key, value in base_filters.items():
+            query_json = dataset_map.get(matched_question)
 
-            if is_placeholder(value):
-                continue
+            if not query_json:
+                print("Dataset mapping missing.")
+                return None
 
-            clean_base_filters[key] = value
+            # Extract dynamic filters from user question
+            dynamic_filters = detect_filters(user_question, entity_cache)
+
+            base_filters = query_json.get("filters", {})
+
+            # ---------------------------------------------------
+            # Remove placeholder filters from dataset filters
+            # ---------------------------------------------------
+
+            clean_base_filters = {}
+
+            for key, value in base_filters.items():
+
+                if is_placeholder(value):
+                    continue
+
+                clean_base_filters[key] = value
+
+            # ---------------------------------------------------
+            # Merge filters
+            # ---------------------------------------------------
+
+            merged_filters = {**clean_base_filters, **dynamic_filters}
+
+            query_json = query_json.copy()
+            query_json["filters"] = merged_filters
+
+            sql = build_sql(query_json)
+
+            result = {
+                "user_question": user_question,
+                "matched_question": matched_question,
+                "similarity": score,
+                "query_json": query_json,
+                "count_sql": sql["count_sql"],
+                "list_sql": sql["list_sql"],
+            }
+
+            return result
 
         # ---------------------------------------------------
-        # Merge filters
+        # PATH 2 — LLM SQL GENERATION
         # ---------------------------------------------------
 
-        merged_filters = {**clean_base_filters, **dynamic_filters}
+        else:
 
-        query_json = query_json.copy()
-        query_json["filters"] = merged_filters
+            print("\nLow similarity. Route to LLM SQL generation.")
 
-        sql = build_sql(query_json)
+            return {
+                "user_question": user_question,
+                "route": "LLM_SQL_GENERATION",
+                "similarity": score
+            }
+    
+    except BaseAppError:
+        # 🔥 Already structured → propagate
+        raise
 
-        result = {
-            "user_question": user_question,
-            "matched_question": matched_question,
-            "similarity": score,
-            "query_json": query_json,
-            "count_sql": sql["count_sql"],
-            "list_sql": sql["list_sql"],
-        }
-
-        return result
-
-    # ---------------------------------------------------
-    # PATH 2 — LLM SQL GENERATION
-    # ---------------------------------------------------
-
-    else:
-
-        print("\nLow similarity. Route to LLM SQL generation.")
-
-        return {
-            "user_question": user_question,
-            "route": "LLM_SQL_GENERATION",
-            "similarity": score
-        }
+    except Exception as e:
+        # 🔥 Wrap unknown failures
+        raise LLMAPIError(f"Intent resolution failed: {e}")

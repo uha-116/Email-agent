@@ -1,105 +1,96 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Uharika – Job Updates</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
 
-<div id="app">
+  <div id="app">
 
-  <!-- ════════════════════════
+    <!-- ════════════════════════
        WELCOME SCREEN
   ════════════════════════ -->
-  <div id="welcome">
-    <div class="welcome-icon">
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"
-              stroke="#888" stroke-width="1.6"
-              stroke-linejoin="round" stroke-linecap="round"/>
-        <path d="M2 17l10 5 10-5"
-              stroke="#888" stroke-width="1.6"
-              stroke-linejoin="round" stroke-linecap="round"/>
-        <path d="M2 12l10 5 10-5"
-              stroke="#555" stroke-width="1.6"
-              stroke-linejoin="round" stroke-linecap="round"/>
-      </svg>
+    <div id="welcome">
+      <div class="welcome-icon">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#888" stroke-width="1.6" stroke-linejoin="round"
+            stroke-linecap="round" />
+          <path d="M2 17l10 5 10-5" stroke="#888" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
+          <path d="M2 12l10 5 10-5" stroke="#555" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
+        </svg>
+      </div>
+      <h1>
+        Hi! Uharika
+        <span class="sub">Want to know the Updates?</span>
+      </h1>
+      <p class="tagline">
+        Ask me about job openings, application status,<br />or career opportunities.
+      </p>
     </div>
-    <h1>
-      Hi! Uharika
-      <span class="sub">Want to know the Updates?</span>
-    </h1>
-    <p class="tagline">
-      Ask me about job openings, application status,<br/>or career opportunities.
-    </p>
-  </div>
 
 
-  <!-- ════════════════════════
+
+    <!-- ════════════════════════
        CHAT AREA
        #chat-area = full-width flex column (no scroll)
        #chat-scroll = hidden-scrollbar inner pane
        #chat-messages = padded content list
        .content-wrap = centres + max-widths each row
   ════════════════════════ -->
-  <div id="chat-area">
-    <div id="chat-scroll">
-      <div id="chat-messages"></div>
+    <div id="chat-area">
+      <div id="chat-scroll">
+        <div id="chat-messages"></div>
+      </div>
     </div>
-  </div>
 
 
-  <!-- ════════════════════════
+    <!-- ════════════════════════
        BOTTOM BAR
   ════════════════════════ -->
-  <div id="bottom-bar">
-    <div class="content-wrap">
+    <div id="bottom-bar">
+      <div class="content-wrap">
 
-      <div id="input-row">
-        <textarea
-          id="user-input"
-          rows="1"
-          placeholder="Ask about job updates…"
-          autocomplete="off"
-          spellcheck="false"
-        ></textarea>
+        <div id="input-row">
+          <textarea id="user-input" rows="1" placeholder="Ask about job updates…" autocomplete="off"
+            spellcheck="false"></textarea>
 
-        <div id="send-btn-wrap">
-          <div id="wait-tooltip">Please wait until we finish it</div>
+          <div id="send-btn-wrap">
+            <div id="wait-tooltip">Please wait until we finish it</div>
 
-          <button id="send-btn" disabled title="Send message">
-            <!-- Telegram send icon -->
-            <svg class="icon-send" width="18" height="18"
-                 viewBox="0 0 24 24" fill="none"
-                 xmlns="http://www.w3.org/2000/svg">
-              <path d="M22 2L11 13"
-                    stroke="#0a0a0a" stroke-width="2.1"
-                    stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M22 2L15 22L11 13L2 9L22 2Z"
-                    stroke="#0a0a0a" stroke-width="2.1"
-                    stroke-linecap="round" stroke-linejoin="round"
-                    fill="#0a0a0a"/>
-            </svg>
+            <button id="send-btn" disabled title="Send message">
+              <!-- Telegram send icon -->
+              <svg class="icon-send" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M22 2L11 13" stroke="#0a0a0a" stroke-width="2.1" stroke-linecap="round"
+                  stroke-linejoin="round" />
+                <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="#0a0a0a" stroke-width="2.1" stroke-linecap="round"
+                  stroke-linejoin="round" fill="#0a0a0a" />
+              </svg>
 
-            <!-- Pause: solid small square -->
-            <svg class="icon-pause" width="14" height="14"
-                 viewBox="0 0 24 24" fill="none"
-                 xmlns="http://www.w3.org/2000/svg">
-              <rect x="5" y="5" width="14" height="14" rx="2.5" fill="#0a0a0a"/>
-            </svg>
-          </button>
+
+
+              <!-- Pause: solid small square -->
+              <svg class="icon-pause" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <rect x="5" y="5" width="14" height="14" rx="2.5" fill="#0a0a0a" />
+              </svg>
+            </button>
+          </div>
         </div>
+
+        <p class="hint">↵ Send &nbsp;·&nbsp; Shift+↵ New line</p>
       </div>
-
-      <p class="hint">↵ Send &nbsp;·&nbsp; Shift+↵ New line</p>
     </div>
-  </div>
 
-</div><!-- /#app -->
+  </div><!-- /#app -->
 
-<script src="script.js"></script>
+  <script src="script.js"></script>
 
 </body>
+
 </html>

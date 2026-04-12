@@ -38,6 +38,9 @@ try:
 except Exception as e:
     print(f"⚠️ Failed to parse GMAIL_TOKEN → {e}")
 
+    raise TokenLoadError(
+        "Invalid GMAIL_TOKEN format in environment. Please update the GitHub secret."
+    )
 try:
     if CREDENTIALS_ENV:
         PARSED_CREDENTIALS = json.loads(CREDENTIALS_ENV)
@@ -96,8 +99,13 @@ def get_gmail_service():
                 pass
             creds = None
 
-    else:
-        creds = None
+    # --------------------------------------------------
+    # 🔥 FAIL FAST IF NO VALID TOKEN (IMPORTANT)
+    # --------------------------------------------------
+    if not creds:
+        raise TokenLoadError(
+            "No valid Gmail token found. Configure GMAIL_TOKEN or run locally to authenticate."
+        )
 
     # --------------------------------------------------
     # STEP 2: VALIDATE / REFRESH
@@ -124,33 +132,58 @@ def get_gmail_service():
 
         except Exception as e:
             print(f"❌ Refresh failed: {e}")
-            raise TokenLoadError(
-                f"Refresh failed — manual login required: {e}"
-            )
 
-    else:
-        creds = None
+            # 🔥 HANDLE invalid_grant → FORCE RE-AUTH
+            if "invalid_grant" in str(e).lower():
+                print("⚠️ Token expired/revoked → Re-authentication required")
 
-    # --------------------------------------------------
-    # STEP 3: NO LOGIN IN PRODUCTION
-    # --------------------------------------------------
-    if not creds:
-        print("❌ No valid credentials available")
-        raise TokenLoadError(
-            "No valid credentials — login required locally"
-        )
+                # --------------------------------------------------
+                # STEP A: DELETE OLD TOKEN
+                # --------------------------------------------------
+                try:
+                    if os.path.exists(TOKEN_PATH):
+                        os.remove(TOKEN_PATH)
+                        print("🗑️ Old token deleted")
+                except Exception as del_err:
+                    print(f"⚠️ Failed to delete old token: {del_err}")
 
-    # --------------------------------------------------
-    # STEP 4: SAVE TOKEN
-    # --------------------------------------------------
-    try:
-        with open(TOKEN_PATH, 'w') as token:
-            token.write(creds.to_json())
-        print("✅ Token saved")
+                # --------------------------------------------------
+                # STEP B: TRIGGER LOGIN FLOW
+                # --------------------------------------------------
+                try:
+                    from google_auth_oauthlib.flow import InstalledAppFlow
 
-    except Exception:
-        print("⚠️ Failed to save token (non-critical)")
+                    print("🌐 Opening browser for Gmail login...")
 
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        CREDENTIALS_PATH,
+                        SCOPES
+                    )
+
+                    creds = flow.run_local_server(port=8080,   
+                                                access_type='offline',     # 🔥 IMPORTANT
+                                                prompt='consent'     )      # 🔥 VERY IMPORTANT)
+
+                    # --------------------------------------------------
+                    # STEP C: SAVE NEW TOKEN
+                    # --------------------------------------------------
+                    try:
+                        with open(TOKEN_PATH, 'w') as token:
+                            token.write(creds.to_json())
+                        print("✅ New token saved after re-auth")
+                    except Exception as save_err:
+                        print(f"⚠️ Failed to save new token: {save_err}")
+
+                except Exception as auth_err:
+                    raise TokenLoadError(
+                        f"Re-authentication failed: {auth_err}"
+                    )
+
+            else:
+                # Existing behavior for other errors
+                raise TokenLoadError(
+                    f"Refresh failed — manual login required: {e}"
+                )
     # --------------------------------------------------
     # STEP 5: BUILD SERVICE
     # --------------------------------------------------

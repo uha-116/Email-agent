@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 from backend.query_engine.intent_to_sql import resolve_user_question
 from backend.query_engine.sql_validator import validate_sql
 from backend.query_engine.query_runner import execute_query
-from backend.query_engine.entry_guard import check_entry_guard
 
 from backend.email_analyser.llm_gemini import call_llm
 from backend.email_analyser.prompts import (
@@ -22,14 +21,14 @@ from backend.error_handling import BaseAppError
 load_dotenv()
 
 MODEL_EXPLAIN = os.getenv("EXPLANATION_MODEL")
-MODEL_SQL = os.getenv("SQL_MODEL")
+MODEL_SQL = os.getenv("SQL_GENERATION_MODEL")
 
 
 # =========================================================
 # 🚀 MAIN ORCHESTRATOR
 # =========================================================
 
-def handle_query(question: str):
+def handle_query_stream(question: str):
 
     print("\n" + "="*80)
     print("🧠 USER QUESTION:")
@@ -41,7 +40,7 @@ def handle_query(question: str):
         # =================================================
         # STEP 1: INTENT → SQL
         # =================================================
-        print("\n🔍 STEP 1: INTENT TO SQL")
+        yield "Analyzing your question"
 
         result = resolve_user_question(question)
         score = result.get("similarity", 0.0)
@@ -49,21 +48,21 @@ def handle_query(question: str):
         print(f"SBERT Score: {score}")
 
         if score < 0.4:
-            print("❌ Out of domain query")
-            return "Hi! I'm Job Application Tracking Assitant. I can only help you with Job related queries.Please ask questions related to your job openings and application status."
-
-        guard = check_entry_guard(question)
-
-        if guard["block"]:
-            print("⚠️ Blocked by entry guard")
-            return guard["message"]
+            yield ("FINAL", "Hi! I'm Job Application Tracking Assistant. I can only help you with job-related queries.")
+            return
 
 
-        # fallback route
+        # =================================================
+        # ROUTING
+        # =================================================
         if "route" in result:
-            print("⚠️ Routed to LLM SQL generation")
-            print("👉 This question requires LLM-based SQL generation (currently disabled)\n")
-            return "This query requires advanced processing which is currently unavailable."
+            yield from _handle_llm_fallback(question)
+            return
+
+        # =================================================
+        # SQL BUILD
+        # =================================================
+        yield "Building query"
 
         count_sql = result.get("count_sql")
         list_sql = result.get("list_sql")
@@ -75,39 +74,35 @@ def handle_query(question: str):
             print("LIST SQL:\n", list_sql)
 
         # =================================================
-        # STEP 2: VALIDATION
+        # VALIDATION
         # =================================================
-        print("\n✅ STEP 2: VALIDATION")
+        yield "Validating Query"
 
         validation = validate_sql(question, count_sql, list_sql)
-        print(validation)
 
         if validation["decision"] != "YES":
-            print("⚠️ Validation failed → switching to LLM SQL")
-            return "Query needs advanced processing"
+            print("⚠️ Validation failed → Routing to LLM fallback")
+            yield from _handle_llm_fallback(question)
+            return
 
         # =================================================
-        # STEP 3: EXECUTION
+        # EXECUTION
         # =================================================
-        print("\n⚡ STEP 3: EXECUTION")
+        yield "Fetching Results"
 
         count_result = None
         list_result = None
 
         if count_sql:
-            print("\nRunning COUNT query...")
             count_result = execute_query(count_sql)
-            print("COUNT RESULT:", count_result)
 
         if list_sql:
-            print("\nRunning LIST query...")
             list_result = execute_query(list_sql)
-            print("LIST RESULT:", list_result)
 
         # =================================================
-        # STEP 4: LLM EXPLANATION
+        # EXPLANATION
         # =================================================
-        print("\n🤖 STEP 4: LLM EXPLANATION")
+        yield "Preparing insights"
 
         records = {
             "count": count_result,
@@ -121,57 +116,76 @@ def handle_query(question: str):
             records
         )
 
-        print("\n🎯 FINAL ANSWER:\n")
-        print(explanation)
-
-        # 🔥 ONLY RETURN FINAL EXPLANATION (UI NEED)
-        return explanation
+        # =================================================
+        # FINAL OUTPUT
+        # =================================================
+        yield ("FINAL", explanation)
 
     except BaseAppError as e:
-        print(f"❌ ERROR: {e.user_message}")
-        return e.user_message
+        yield ("FINAL", e.user_message)
+
+    except GeneratorExit:
+        print("⚠️ Stream closed by client")
+        return
 
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
-        return "Something went wrong while processing your request."
-
+        yield ("FINAL", "Something went wrong while processing your request.")
+        
 
 # =========================================================
-# 🔥 LLM SQL FALLBACK
+# 🔥 LLM SQL FALLBACK HANDLER (NEW)
 # =========================================================
 
-def _handle_llm_sql(question):
+def _handle_llm_fallback(question):
+
+    yield "Generating query using AI"
+
+    response = _generate_llm_sql(question)
+
+    try:
+        parsed = json.loads(response)
+
+        if parsed.get("decision") == "NO":
+            yield ("FINAL", parsed.get("reason", "Sorry Uharika! This request is outside system capabilities."))
+            return
+
+        sql = parsed.get("sql")
+
+
+
+    except:
+        sql = response
+
+    yield "Fetching Results"
+
+    result_data = execute_query(sql)
+
+    yield "Preparing insights"
+
+    explanation = _generate_explanation(
+        question,
+        None,
+        sql,
+        result_data
+    )
+
+    yield ("FINAL", explanation)
+
+# =========================================================
+# 🔥 LLM SQL GENERATION
+# =========================================================
+
+def _generate_llm_sql(question):
 
     print("\n🧠 FALLBACK: LLM SQL GENERATION")
 
-    try:
-        prompt = SQL_GENERATION_PROMPT + "\n\nUSER QUESTION:\n" + question
+    prompt = SQL_GENERATION_PROMPT + "\n\nUSER QUESTION:\n" + question
 
-        sql = call_llm(prompt, MODEL_SQL, 1000,0)
+    sql = call_llm(prompt, MODEL_SQL, 1000, 0)
 
-        print("\nGenerated SQL (LLM):\n", sql)
+    print("\nGenerated SQL (LLM):\n", sql)
 
-        print("\n⚡ Executing LLM SQL...")
-        result = execute_query(sql)
-
-        print("\nRESULT:\n", result)
-
-        explanation = _generate_explanation(
-            question,
-            None,
-            sql,
-            result
-        )
-
-        print("\n🎯 FINAL ANSWER:\n")
-        print(explanation)
-
-        # 🔥 RETURN ONLY FINAL EXPLANATION
-        return explanation
-
-    except Exception as e:
-        print("❌ LLM SQL failed:", e)
-        return "Failed to process query using AI."
+    return sql.strip()
 
 
 # =========================================================
@@ -200,8 +214,14 @@ def _generate_explanation(question, count_sql, list_sql, records):
 
     try:
         return call_llm(prompt, MODEL_EXPLAIN,8000,0)
+
+    except BaseAppError as e:
+        print(f"❌ EXPLANATION ERROR: {e.user_message}")
+        return e.user_message
+
     except Exception as e:
-        return "LLM explanation failed: " + str(e)
+        print(f"❌ Unexpected explanation error: {e}")
+        return "I found your results, but couldn't format them properly. Please try again."
 
 
 # =========================================================
@@ -218,9 +238,8 @@ def main():
         if q.lower() in ["exit", "quit"]:
             break
 
-        result = handle_query(q)
+        result = handle_query_stream(q)
 
-        # optional debug
         print("\n📦 RETURNED (for UI):\n", result)
 
 

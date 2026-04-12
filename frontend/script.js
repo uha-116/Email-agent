@@ -1,17 +1,17 @@
 /* ─── DOM refs ─── */
-const textarea    = document.getElementById('user-input');
-const sendBtn     = document.getElementById('send-btn');
-const chatArea    = document.getElementById('chat-area');
-const chatScroll  = document.getElementById('chat-scroll');
-const chatMsgs    = document.getElementById('chat-messages');
-const welcome     = document.getElementById('welcome');
+const textarea = document.getElementById('user-input');
+const sendBtn = document.getElementById('send-btn');
+const chatArea = document.getElementById('chat-area');
+const chatScroll = document.getElementById('chat-scroll');
+const chatMsgs = document.getElementById('chat-messages');
+const welcome = document.getElementById('welcome');
 const waitTooltip = document.getElementById('wait-tooltip');
 
 /* ─── State ─── */
-let isProcessing  = false;
-let typeTimer     = null;
-let tooltipTimer  = null;
+let isProcessing = false;
+let tooltipTimer = null;
 let chatActivated = false;
+let currentStream = null;
 
 /* ─── Auto-resize textarea ─── */
 textarea.addEventListener('input', () => {
@@ -73,10 +73,10 @@ function avatarSVG() {
 
 /* ─── Append user message ─── */
 function appendUserMessage(text) {
-  const wrap   = document.createElement('div');
+  const wrap = document.createElement('div');
   wrap.className = 'content-wrap';
 
-  const row    = document.createElement('div');
+  const row = document.createElement('div');
   row.className = 'msg-row user';
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
@@ -90,11 +90,11 @@ function appendUserMessage(text) {
 
 /* ─── Append AI placeholder; returns bubble ─── */
 function appendAIPlaceholder() {
-  const wrap   = document.createElement('div');
+  const wrap = document.createElement('div');
   wrap.className = 'content-wrap';
   wrap.id = 'active-ai-wrap';
 
-  const row    = document.createElement('div');
+  const row = document.createElement('div');
   row.className = 'msg-row ai';
 
   const av = document.createElement('div');
@@ -103,7 +103,9 @@ function appendAIPlaceholder() {
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-  bubble.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
+  bubble.innerHTML = `
+  <span id="status-text">🔍 Understanding your question</span>
+`;
 
   row.appendChild(av);
   row.appendChild(bubble);
@@ -117,35 +119,52 @@ function formatResponse(text) {
   if (!text) return '';
 
   return text
-    .replace('# Answer', '')
-    .replace(/\*\*(.*?)\*\*/g, '$1')
+    // Remove markdown header
+    .replace(/^#\s+Answer\s*/i, '')
 
-    // 🔥 UNIVERSAL LINK HANDLING
+    // **bold** → <strong>
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+
+    // Markdown-style links [text](url)
     .replace(
-      /([A-Za-z\s]+:\s*)(https?:\/\/\S+)/g,
-      '$1<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#4da6ff;">View</a>'
+      /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#4da6ff;">$1</a>'
     )
+
+    // Bare URLs with optional label prefix  →  clickable "View" link
+    .replace(
+      /(?<!="|'|")(https?:\/\/\S+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#4da6ff;">View</a>'
+    )
+
+    // Bullet points: lines starting with - or •
+    .replace(/^[\-•]\s+(.+)$/gm, '<div style="padding-left:12px;">• $1</div>')
+
+    // Newlines → <br>
+    .replace(/\n/g, '<br>')
 
     .trim();
 }
 
 function typeText(bubble, html, onDone) {
-  const parts = html.split(/(<a.*?>.*?<\/a>)/g); // 🔥 split links safely
+  // Split on ALL HTML tags — tags are inserted instantly, plain text typed char-by-char
+  const parts = html.split(/(<[^>]+>)/g).filter(p => p.length > 0);
   let index = 0;
 
   bubble.innerHTML = '';
 
   function tick() {
-    if (!isProcessing) return;
-
     if (index < parts.length) {
       const part = parts[index];
 
-      if (part.startsWith('<a')) {
-        // 🔥 insert full link instantly (clickable immediately)
+      if (part.startsWith('<')) {
+        // 🔥 Insert HTML tag instantly
         bubble.innerHTML += part;
+        scrollToBottom();
+        index++;
+        setTimeout(tick, 5);
       } else {
-        // 🔥 type normal text slowly
+        // 🔥 Type plain text character by character
         let i = 0;
 
         function typeChunk() {
@@ -162,10 +181,9 @@ function typeText(bubble, html, onDone) {
         typeChunk();
         return;
       }
-
-      index++;
-      setTimeout(tick, 30);
     } else {
+      // 🔥 FINAL FIX: re-apply full HTML to ensure links render correctly
+      bubble.innerHTML = html;
       onDone();
     }
   }
@@ -174,15 +192,20 @@ function typeText(bubble, html, onDone) {
 }
 /* ─── Stop response ─── */
 function stopResponse() {
-  clearTimeout(typeTimer);
+
   isProcessing = false;
+
+  if (currentStream) {
+    currentStream.close();
+    currentStream = null;
+  }
 
   const wrap = document.getElementById('active-ai-wrap');
   if (wrap) {
     const bubble = wrap.querySelector('.bubble');
     if (bubble) {
       const existing = bubble.textContent.trim();
-      if (!existing || bubble.querySelector('.typing-dots')) {
+      if (!existing) {
         bubble.innerHTML = '<span class="stopped-msg">Response stopped.</span>';
       } else {
         bubble.textContent += '…';
@@ -193,10 +216,26 @@ function stopResponse() {
   updateSendState();
 }
 
+function updateStatus(text) {
+  const el = document.getElementById('status-text');
+  if (!el) return;
+
+  el.innerText = text;
+
+  el.classList.add("shimmer-text");
+}
+
+
+
 /* ─── Main send handler (UPDATED) ─── */
 function handleSend() {
   const text = textarea.value.trim();
   if (!text || isProcessing) return;
+
+  if (currentStream) {
+    currentStream.close();
+    currentStream = null;
+  }
 
   activateChat();
   appendUserMessage(text);
@@ -208,37 +247,90 @@ function handleSend() {
 
   const bubble = appendAIPlaceholder();
 
-  // 🔥 REPLACED: dummy response → real backend call
-  fetch("http://127.0.0.1:8000/query", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      question: text
-    })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (!isProcessing) return;
 
-    const reply = formatResponse(data.answer || "No response received");
+  const evtSource = new EventSource(
+    `http://127.0.0.1:8000/query-stream?q=${encodeURIComponent(text)}`
+  );
+  currentStream = evtSource;
 
-    typeText(bubble, reply, () => {
-      isProcessing = false;
-      const wrap = document.getElementById('active-ai-wrap');
-      if (wrap) wrap.removeAttribute('id');
-      updateSendState();
-    });
-  })
-  .catch(err => {
+
+  evtSource.onmessage = function (event) {
+    const data = event.data.trim();
+
+    console.log("📨 SSE event:", JSON.stringify(data));
+
+    if (data.startsWith("FINAL::")) {
+
+      const rawReply = data.replace("FINAL::", "");
+      // 🔥 FIX: parse JSON string properly
+      let parsedReply = "";
+
+      try {
+        parsedReply = JSON.parse(rawReply);
+      } catch (e) {
+        console.error("JSON parse failed:", e);
+        parsedReply = rawReply;
+      }
+      const reply = formatResponse(parsedReply);
+
+      console.log("✅ Final reply (raw):", rawReply);
+      console.log("✅ Final reply (formatted):", reply);
+
+      // 🔥 STEP 1: fade out status text
+      bubble.classList.add("fade-out");
+
+      setTimeout(() => {
+
+        // 🔥 STEP 2: clear bubble completely
+        bubble.innerHTML = "";
+
+        // 🔥 STEP 3: remove fade class
+        bubble.classList.remove("fade-out");
+
+        // 🔥 STEP 4: start typing clean answer
+        if (reply) {
+          typeText(bubble, reply, () => {
+            isProcessing = false;
+
+            const wrap = document.getElementById('active-ai-wrap');
+            if (wrap) wrap.removeAttribute('id');
+
+            updateSendState();
+          });
+        } else {
+          // Fallback if reply is empty
+          bubble.textContent = rawReply || "No response received.";
+          isProcessing = false;
+
+          const wrap = document.getElementById('active-ai-wrap');
+          if (wrap) wrap.removeAttribute('id');
+
+          updateSendState();
+        }
+
+      }, 300); // matches CSS transition time
+
+      evtSource.close();
+      currentStream = null;
+    } else {
+      // 🔥 update SAME status tag text
+      updateStatus(data);
+    }
+  };
+
+  evtSource.onerror = function (err) {
     console.error(err);
+
 
     typeText(bubble, "⚠️ Unable to connect to server", () => {
       isProcessing = false;
       updateSendState();
     });
-  });
+
+    evtSource.close();
+    currentStream = null;
+  };
+
 }
 
 /* ─── Scroll to bottom ─── */

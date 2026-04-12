@@ -3,6 +3,7 @@
 import re
 from rapidfuzz import fuzz
 from backend.db_storage.db_connection import get_db_connection
+from backend.error_handling import BaseAppError, DBConnectionError
 
 
 class EntityCache:
@@ -30,42 +31,60 @@ class EntityCache:
     # -------------------------------------------------
     # Load distinct values from DB
     # -------------------------------------------------
+
     def load_from_db(self):
-        conn = get_db_connection()
-        cur = conn.cursor()
+        conn = None
+        cur = None
 
-        # Companies
-        cur.execute(
-            "SELECT DISTINCT company FROM opportunities WHERE company IS NOT NULL;"
-        )
-        self.companies = {
-            row[0].strip().lower()
-            for row in cur.fetchall()
-            if row[0] and len(row[0].strip()) > 2
-        }
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
 
-        # Roles
-        cur.execute(
-            "SELECT DISTINCT role FROM opportunities WHERE role IS NOT NULL;"
-        )
-        self.roles = {
-            self._normalize_text(row[0].strip())
-            for row in cur.fetchall()
-            if row[0] and len(row[0].strip()) > 2
-        }
+            # Companies
+            cur.execute(
+                "SELECT DISTINCT company FROM opportunities WHERE company IS NOT NULL;"
+            )
+            self.companies = {
+                row[0].strip().lower()
+                for row in cur.fetchall()
+                if row[0] and len(row[0].strip()) > 2
+            }
 
-        # Locations
-        cur.execute(
-            "SELECT DISTINCT location FROM opportunities WHERE location IS NOT NULL;"
-        )
-        self.locations = {
-            row[0].strip().lower()
-            for row in cur.fetchall()
-            if row[0] and len(row[0].strip()) > 2
-        }
+            # Roles
+            cur.execute(
+                "SELECT DISTINCT role FROM opportunities WHERE role IS NOT NULL;"
+            )
+            self.roles = {
+                self._normalize_text(row[0].strip())
+                for row in cur.fetchall()
+                if row[0] and len(row[0].strip()) > 2
+            }
 
-        cur.close()
-        conn.close()
+            # Locations
+            cur.execute(
+                "SELECT DISTINCT location FROM opportunities WHERE location IS NOT NULL;"
+            )
+            self.locations = {
+                row[0].strip().lower()
+                for row in cur.fetchall()
+                if row[0] and len(row[0].strip()) > 2
+            }
+
+            print("EntityCache loaded successfully.")
+
+        except BaseAppError:
+            # 🔥 Already structured → propagate as-is
+            raise
+
+        except Exception as e:
+            # 🔥 Wrap unknown DB errors
+            raise DBConnectionError(f"EntityCache load failed: {e}")
+
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
         print("EntityCache loaded successfully.")
         print(f"Companies: {len(self.companies)}")

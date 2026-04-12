@@ -300,6 +300,9 @@ def insert_or_update_opportunity(
             """
             UPDATE opportunities
             SET
+
+                email_id = %s,
+
                 -- 🔒 ROLE (only if NULL)
                 role = COALESCE(role, %s),
 
@@ -354,6 +357,8 @@ def insert_or_update_opportunity(
             WHERE id = %s;
             """,
             (
+                 email_id, 
+                 
                 # role
                 role,
 
