@@ -28,3 +28,5 @@ backend/data/questions.txt
 
 # Ignore DB snapshots
 backend/data/db_snapshot/
+
+node_modules/

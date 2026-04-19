@@ -16,6 +16,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      # 🔥 ADD THIS STEP (VERY IMPORTANT)
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+
+      # Python dependencies
       - run: pip install -r requirements.txt
 
       - name: Run Email Ingestion
