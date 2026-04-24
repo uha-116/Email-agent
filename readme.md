@@ -1,4 +1,4 @@
-#AI POWERED JOB APPLICATION TRACKING AGENT
+## AI POWERED JOB APPLICATION TRACKING AGENT
 
 An AI-powered email assistant that helps track job applications and recruiter conversations.
 
